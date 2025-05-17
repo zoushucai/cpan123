@@ -1,0 +1,101 @@
+{
+	"create_payment": {
+		"method": "POST",
+		"url": "/api/v1/share/content-payment/create",
+		"data": {
+			"shareName": "string: required",
+			"fileIDList": "string: required",
+			"payAmount": "number: required",
+			"isReward": "number: required",
+			"resourceDesc": "string: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"shareID": { "type": "number" },
+				"shareKey": { "type": "string" }
+			},
+			"required": ["shareID", "shareKey"]
+		}
+	},
+	"create_free": {
+		"method": "POST",
+		"url": "/api/v1/share/create",
+		"data": {
+			"shareName": "string: required",
+			"shareExpire": "number: required",
+			"fileIDList": "string: required",
+			"sharePwd": "string: optional",
+			"trafficSwitch": "number: optional",
+			"trafficLimitSwitch": "number: optional",
+			"trafficLimit": "number: optional"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"shareID": { "type": "number" },
+				"shareKey": { "type": "string" }
+			},
+			"required": ["shareID", "shareKey"]
+		}
+	},
+	"change_share": {
+		"method": "PUT",
+		"url": "/api/v1/share/list/info",
+		"data": {
+			"shareIdList": "number: required",
+			"trafficSwitch": "string: optional",
+			"trafficLimitSwitch": "string: optional",
+			"trafficLimit": "number: optional"
+		}
+	},
+	"get_share": {
+		"method": "GET",
+		"url": "/api/v1/share/list",
+		"params": {
+			"limit": "number: required",
+			"lastShareId": "number: optional"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"lastShareId": { "type": "number" },
+				"shareList": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"shareId": { "type": "number" },
+							"shareKey": { "type": "string" },
+							"shareName": { "type": "string" },
+							"expiration": { "type": "string" },
+							"expired": { "type": "number", "enum": [0, 1] },
+							"sharePwd": { "type": "string" },
+							"trafficSwitch": { "type": "number" },
+							"trafficLimitSwitch": { "type": "number", "enum": [1, 2] },
+							"trafficLimit": { "type": "number" },
+							"previewCount": { "type": "number" },
+							"downloadCount": { "type": "number" },
+							"saveCount": { "type": "number" }
+						},
+						"required": [
+							"shareId",
+							"shareKey",
+							"shareName",
+							"expiration",
+							"expired",
+							"sharePwd",
+							"trafficSwitch",
+							"trafficLimitSwitch",
+							"trafficLimit",
+							"previewCount",
+							"downloadCount",
+							"saveCount"
+						]
+					}
+				}
+			},
+			"required": ["lastShareId", "shareList"]
+		}
+	}
+}

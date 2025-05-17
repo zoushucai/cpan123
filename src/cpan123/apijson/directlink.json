@@ -1,0 +1,80 @@
+{
+	"enable": {
+		"method": "POST",
+		"url": "/api/v1/direct-link/enable",
+		"data": {
+			"fileID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"filename": { "type": "string" }
+			},
+			"required": ["filename"]
+		},
+		"comment": "启用直链空间,但是好像只能在根目录下的文件夹才可以,否则不会成功"
+	},
+	"url": {
+		"method": "GET",
+		"url": "/api/v1/direct-link/url",
+		"data": {
+			"fileID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"url": { "type": "string" }
+			},
+			"required": ["url"]
+		}
+	},
+	"log": {
+		"method": "GET",
+		"url": "/api/v1/direct-link/log",
+		"params": {
+			"pageNum": "number: required",
+			"pageSize": "number: required",
+			"startTime": "number: required",
+			"endTime": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"total": { "type": "number" },
+				"list": { "type": "array" },
+				"uniqueID": { "type": "string" },
+				"fileName": { "type": "string" },
+				"fileSize": { "type": "number" },
+				"filePath": { "type": "string" },
+				"directLinkURL": { "type": "string" },
+				"fileSource": { "type": "number" },
+				"totalTraffic": { "type": "number" }
+			},
+			"required": [
+				"total",
+				"list",
+				"uniqueID",
+				"fileName",
+				"fileSize",
+				"filePath",
+				"directLinkURL",
+				"fileSource",
+				"totalTraffic"
+			]
+		}
+	},
+	"disable": {
+		"method": "POST",
+		"url": "/api/v1/direct-link/disable",
+		"data": {
+			"fileID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"filename": { "type": "string" }
+			},
+			"required": ["filename"]
+		}
+	}
+}

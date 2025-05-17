@@ -1,0 +1,34 @@
+{
+	"download": {
+		"method": "post",
+		"url": "/api/v1/offline/download",
+		"data": {
+			"url": "string: required",
+			"fileName": "string: optional",
+			"dirID": "number: optional",
+			"callBackUrl": "string: optional"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"taskID": { "type": "number" }
+			},
+			"required": ["taskID"]
+		}
+	},
+	"process": {
+		"method": "get",
+		"url": "/api/v1/offline/download/process",
+		"params": {
+			"taskID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"process": { "type": "number" },
+				"status": { "type": "number", "enum": [0, 1, 2, 3] }
+			},
+			"required": ["process", "status"]
+		}
+	}
+}

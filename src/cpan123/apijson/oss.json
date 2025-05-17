@@ -1,0 +1,331 @@
+{
+	"mkdir": {
+		"method": "POST",
+		"url": "/upload/v1/oss/file/mkdir",
+		"data": {
+			"name": "string: required",
+			"parentID": "string: required",
+			"type": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"list": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"filename": { "type": "string" },
+							"dirID": { "type": "string" }
+						},
+						"required": ["filename", "dirID"]
+					}
+				},
+				"required": ["fileID"]
+			}
+		}
+	},
+	"create": {
+		"method": "POST",
+		"url": "/upload/v1/oss/file/create",
+		"data": {
+			"parentFileID": "string: required",
+			"filename": "string: required",
+			"etag": "string: required",
+			"size": "number: required",
+			"type": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"fileID": {
+					"type": "string"
+				},
+				"reuse": {
+					"type": "boolean"
+				},
+				"preuploadID": {
+					"type": "string"
+				},
+				"sliceSize": {
+					"type": "number"
+				}
+			},
+			// 预上传ID(如果 reuse 为 true 时,该字段不存在, 这里文档有误,  当reuse为true时, preuploadID 字段为空
+			// 更改下面的逻辑
+			// 当 reuse == true 时，允许 preuploadID 可以完全不出现； 或者出现，但值是空字符串 ""。
+			"required": ["reuse", "sliceSize"],
+			"if": {
+				"properties": {
+					"reuse": { "const": false }
+				}
+			},
+			"then": {
+				"required": ["preuploadID"]
+			},
+			"else": {
+				"properties": {
+					"preuploadID": {
+						"type": "string",
+						"maxLength": 0
+					}
+				},
+				"additionalProperties": true
+			}
+		}
+	},
+
+	"get_upload_url": {
+		"method": "POST",
+		"url": "/upload/v1/oss/file/get_upload_url",
+		"data": {
+			"preuploadID": "string: required",
+			"sliceNo": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"presignedURL": {
+					"type": "string"
+				}
+			},
+			"required": ["presignedURL"]
+		}
+	},
+	"upload_complete": {
+		"method": "POST",
+		"url": "/upload/v1/oss/file/upload_complete",
+		"data": {
+			"preuploadID": "string: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"async": { "type": "boolean" },
+				"completed": { "type": "boolean" }
+			},
+			"required": ["async", "completed"]
+		}
+	},
+	"upload_async_result": {
+		"method": "POST",
+		"url": "/upload/v1/oss/file/upload_async_result",
+		"data": {
+			"preuploadID": "string: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"completed": { "type": "boolean" },
+				"fileID": { "type": "string" }
+			},
+			"required": ["completed", "fileID"]
+		}
+	},
+	"copy": {
+		"method": "POST",
+		"url": "/api/v1/oss/source/copy",
+		"data": {
+			"fileIDs": "array: required",
+			"toParentFileID": "string: required",
+			"sourceType": "string: required",
+			"type": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"taskID": { "type": "string" }
+			},
+			"required": ["taskID"]
+		}
+	},
+	"process": {
+		"method": "get",
+		"url": "/api/v1/oss/source/copy/process",
+		"params": {
+			"taskID": "string: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"status": { "type": "number", "enum": [1, 2, 3, 4] },
+				"failMsg": { "type": "string" }
+			},
+			"required": ["status", "failMsg"]
+		}
+	},
+	"fail": {
+		"method": "get",
+		"url": "/api/v1/oss/source/copy/fail",
+		"data": {
+			"taskID": "string: required",
+			"limit": "number: required",
+			"page": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"total": { "type": "number" },
+				"list": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"fileId": { "type": "string" },
+							"filename": { "type": "string" }
+						},
+						"required": ["fileID", "filename"]
+					}
+				}
+			},
+			"required": ["total", "items"]
+		}
+	},
+	"move": {
+		"method": "POST",
+		"url": "/api/v1/oss/file/move",
+		"data": {
+			"fileIDs": "array: required",
+			"toParentFileID": "string: required"
+		}
+	},
+	"delete": {
+		"method": "POST",
+		"url": "/api/v1/oss/file/delete",
+		"data": {
+			"fileIDs": "array: required"
+		}
+	},
+	"detail": {
+		"method": "get",
+		"url": "/api/v1/oss/file/detail",
+		"params": {
+			"fileID": "string: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"fileId": { "type": "string" },
+				"filename": { "type": "string" },
+				"type": { "type": "number" },
+				"size": { "type": "number" },
+				"etag": { "type": "string" },
+				"status": { "type": "number" },
+				"createAt": { "type": "string" },
+				"updateAt": { "type": "string" },
+				"downloadURL": { "type": "string" },
+				"userSelfURL": { "type": "string" },
+				"totalTraffic": { "type": "number" },
+				"parentFileId": { "type": "string" },
+				"parentFilename": { "type": "string" },
+				"extension": { "type": "string" }
+			},
+			"required": [
+				"fileId",
+				"filename",
+				"type",
+				"size",
+				"etag",
+				"status",
+				"createAt",
+				"updateAt",
+				"downloadURL",
+				"userSelfURL",
+				"totalTraffic",
+				"parentFileId",
+				"parentFilename",
+				"extension"
+			]
+		}
+	},
+	"file_list": {
+		"method": "post",
+		"url": "/api/v1/oss/file/list",
+		"params": {
+			"parentFileId": "string: required",
+			"limit": "number: required",
+			"startTime": "number: optional",
+			"endTime": "number: optional",
+			"lastFileId": "string: optional",
+			"type": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"lastFileId": { "type": "string" },
+				"fileList": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"fileId": { "type": "string" },
+							"filename": { "type": "string" },
+							"type": { "type": "number" },
+							"size": { "type": "number" },
+							"etag": { "type": "string" },
+							"status": { "type": "number" },
+							"createAt": { "type": "string" },
+							"updateAt": { "type": "string" },
+							"downloadURL": { "type": "string" },
+							"userSelfURL": { "type": "string" },
+							"totalTraffic": { "type": "number" },
+							"parentFileId": { "type": "string" },
+							"parentFilename": { "type": "string" },
+							"extension": { "type": "string" }
+						},
+						"required": [
+							"fileId",
+							"filename",
+							"type",
+							"size",
+							"etag",
+							"status",
+							"createAt",
+							"updateAt",
+							"downloadURL",
+							"userSelfURL",
+							"totalTraffic",
+							"parentFileId",
+							"parentFilename",
+							"extension"
+						]
+					}
+				}
+			},
+			"required": ["lastFileId", "fileList"]
+		}
+	},
+	"offline_download": {
+		"method": "post",
+		"url": "/api/v1/oss/offline/download",
+		"data": {
+			"url": "string: required",
+			"fileName": "string: optional",
+			"businessDirID": "string: optional",
+			"callBackUrl": "string: optional",
+			"type": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"taskID": { "type": "number" }
+			},
+			"required": ["taskID"]
+		}
+	},
+	"offline_process": {
+		"method": "get",
+		"url": "/api/v1/oss/offline/download/process",
+		"params": {
+			"taskID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"status": { "type": "number", "enum": [0, 1, 2, 3] },
+				"process": { "type": "number" }
+			},
+			"required": ["status", "failMsg"]
+		}
+	}
+}

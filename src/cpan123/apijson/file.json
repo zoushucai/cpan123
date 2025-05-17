@@ -1,0 +1,364 @@
+{
+	"create": {
+		"method": "POST",
+		"url": "/upload/v1/file/create",
+		"data": {
+			"parentFileID": "number: required",
+			"filename": "string: required",
+			"etag": "string: required",
+			"size": "number: required",
+			"duplicate": "number: optional",
+			"containDir": "boolean: optional"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"fileID": {
+					"type": "number"
+				},
+				"preuploadID": {
+					"type": "string"
+				},
+				"reuse": {
+					"type": "boolean"
+				},
+				"sliceSize": {
+					"type": "number"
+				}
+			},
+			// 预上传ID(如果 reuse 为 true 时,该字段不存在, 这里文档有误,  当reuse为true时, preuploadID 字段为空
+			// 更改下面的逻辑
+			// 当 reuse == true 时，允许 preuploadID 可以完全不出现； 或者出现，但值是空字符串 ""。
+			"required": ["reuse", "sliceSize"],
+			"if": {
+				"properties": {
+					"reuse": { "const": false }
+				}
+			},
+			"then": {
+				"required": ["preuploadID"]
+			},
+			"else": {
+				"properties": {
+					"preuploadID": {
+						"type": "string",
+						"maxLength": 0
+					}
+				},
+				"additionalProperties": true
+			}
+		},
+		"comment": "response_schema 是对响后的json数据进行检查,检查字段是否存在和类型是否正确,是递归的,只要含有这个字段且类型正确就可以了, schema_ 也是对响应后的json数据中的data字段进行检查, 不递归, 需要编写jsonschema_, 二者同时存在优先schema_, 参数 data, params json 至少应该有一个 "
+	},
+	"get_upload_url": {
+		"method": "POST",
+		"url": "/upload/v1/file/get_upload_url",
+		"data": {
+			"parentFileID": "number: required",
+			"sliceNo": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"presignedURL": {
+					"type": "string"
+				}
+			},
+			"required": ["presignedURL"]
+		}
+	},
+	"list_upload_parts": {
+		"method": "POST",
+		"url": "/upload/v1/file/list_upload_parts",
+		"data": {
+			"parentFileID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"parts": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"partNumber": { "type": "number" },
+							"size": { "type": "number" },
+							"etag": { "type": "string" }
+						},
+						"required": ["partNumber", "size", "etag"]
+					}
+				}
+			},
+			"required": ["parts"]
+		}
+	},
+	"upload_complete": {
+		"method": "POST",
+		"url": "/upload/v1/file/upload_complete",
+		"data": {
+			"parentFileID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"async": { "type": "boolean" },
+				"completed": { "type": "boolean" },
+				"fileID": { "type": "number" }
+			},
+			"required": ["async", "completed", "fileID"]
+		}
+	},
+	"upload_async_result": {
+		"method": "POST",
+		"url": "/upload/v1/file/upload_async_result",
+		"data": {
+			"parentFileID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"completed": { "type": "bool" },
+				"fileID": { "type": "number" }
+			},
+			"required": ["completed", "fileID"]
+		}
+	},
+	"mkdir": {
+		"method": "POST",
+		"url": "/upload/v1/file/mkdir",
+		"data": {
+			"name": "string: required",
+			"parentID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"dirID": { "type": "number" }
+			},
+			"required": ["dirID"]
+		}
+	},
+	"name": {
+		"method": "PUT",
+		"url": " /api/v1/file/name",
+		"data": {
+			"fileId": "number: required",
+			"fileName": "string: required"
+		}
+	},
+	"rename": {
+		"method": "POST",
+		"url": "/api/v1/file/rename",
+		"data": {
+			"renameList": "array: required"
+		}
+	},
+	"trash": {
+		"method": "POST",
+		"url": "/api/v1/file/trash",
+		"data": {
+			"fileIDs": "array: required"
+		}
+	},
+	"recover": {
+		"method": "POST",
+		"url": "/api/v1/file/recover",
+		"data": {
+			"fileIDs": "array: required"
+		}
+	},
+	"delete": {
+		"method": "POST",
+		"url": "/api/v1/file/delete",
+		"data": {
+			"fileIDs": "array: required"
+		}
+	},
+	"detail": {
+		"method": "get",
+		"url": "/api/v1/file/detail",
+		"params": {
+			"fileID": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"fileID": { "type": "number" },
+				"filename": { "type": "string" },
+				"type": { "type": "number", "enum": [0, 1] },
+				"size": { "type": "number" },
+				"etag": { "type": "string" },
+				"status": { "type": "number" },
+				"parentFileID": { "type": "number" },
+				"createAt": { "type": "string" },
+				"trashed": { "type": "number", "enum": [0, 1] }
+			},
+			"required": ["fileID", "filename", "type", "size", "etag", "status", "parentFileID", "createAt", "trashed"]
+		}
+	},
+	"infos": {
+		"method": "post",
+		"url": "/api/v1/file/infos",
+		"data": {
+			"fileIds": "number: required"
+		},
+		"response_schema": {
+			"fileList": { "type": "array" },
+			"fileID": { "type": "number" },
+			"filename": { "type": "string" },
+			"type": { "type": "number" },
+			"size": { "type": "number" },
+			"etag": { "type": "string" },
+			"createAt": { "type": "string" }
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"fileList": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"fileId": { "type": "number" },
+							"filename": { "type": "string" },
+							"parentFileId": { "type": "number" },
+							"type": { "type": "number", "enum": [0, 1] },
+							"etag": { "type": "string" },
+							"size": { "type": "number" },
+							"category": { "type": "number", "enum": [0, 1, 2, 3] },
+							"status": { "type": "number" },
+							"punishFlag": { "type": "number" },
+							"s3KeyFlag": { "type": "string" },
+							"storageNode": { "type": "string" },
+							"trashed": { "type": "number", "enum": [0, 1] },
+							"createAt": { "type": "string" },
+							"updateAt": { "type": "string" }
+						},
+						"required": [
+							"fileId",
+							"filename",
+							"parentFileID",
+							"type",
+							"size",
+							"etag",
+							"category",
+							"status",
+							"punishFlag",
+							"s3KeyFlag",
+							"storageNode",
+							"trashed",
+							"createAt",
+							"updateAt"
+						]
+					}
+				}
+			},
+			"required": ["fileList"]
+		}
+	},
+	"list_v2": {
+		"method": "get",
+		"url": "/api/v2/file/list",
+		"params": {
+			"parentFileId": "number: required",
+			"limit": "number: required",
+			"searchData": "string: optional",
+			"searchMode": "number: optional",
+			"lastFileId": "number: optional"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"lastFileId": { "type": "number" },
+				"fileList": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"fileId": { "type": "number" },
+							"filename": { "type": "string" },
+							"type": { "type": "number", "enum": [0, 1] },
+							"etag": { "type": "string" },
+							"size": { "type": "number" },
+							"status": { "type": "number" },
+							"parentFileId": { "type": "number" },
+							"category": { "type": "number" }, //"enum": [0, 1, 2, 3] 实际情况可以出现5,而文档写的是0-4, 因此不要
+							"trashed": { "type": "number", "enum": [0, 1] }
+						},
+						"required": ["fileId", "filename", "type", "size", "etag", "status", "parentFileId", "category", "trashed"]
+					}
+				}
+			},
+			"required": ["lastFileId", "fileList"]
+		}
+	},
+	"list_v1": {
+		"method": "get",
+		"url": "/api/v1/file/list",
+		"params": {
+			"parentFileId": "number: required",
+			"page": "number: required",
+			"limit": "number: required",
+			"orderBy": "string: required",
+			"orderDirection": "string: required",
+			"trashed": "bool: optional",
+			"searchData": "string: optional"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"fileList": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"fileID": { "type": "number" },
+							"filename": { "type": "string" },
+							"type": { "type": "number", "enum": [0, 1] },
+							"etag": { "type": "string" },
+							"size": { "type": "number" },
+							"status": { "type": "number" },
+							"parentFileId": { "type": "number" },
+							"category": { "type": "number" }, //"enum": [0, 1, 2, 3] 实际情况可以出现5,而文档写的是0-4, 因此不要
+							"contentType": { "type": "number" }
+						},
+						"required": [
+							"fileID",
+							"filename",
+							"type",
+							"size",
+							"etag",
+							"status",
+							"parentFileId",
+							"category",
+							"contentType"
+						]
+					}
+				}
+			},
+			"required": ["fileList"]
+		}
+	},
+	"move": {
+		"method": "POST",
+		"url": "/api/v1/file/move",
+		"data": {
+			"fileIDs": "array: required",
+			"toParentFileID": "number: required"
+		}
+	},
+	"download_info": {
+		"method": "get",
+		"url": "/api/v1/file/download_info",
+		"params": {
+			"fileId": "number: required"
+		},
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"downloadUrl": { "type": "string" }
+			},
+			"required": ["downloadUrl"]
+		}
+	}
+}

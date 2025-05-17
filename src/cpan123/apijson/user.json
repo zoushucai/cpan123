@@ -1,0 +1,38 @@
+{
+	"info": {
+		"method": "GET",
+		"url": "/api/v1/user/info",
+		"data": null,
+		"schema_": {
+			"type": "object",
+			"properties": {
+				"uid": { "type": "number" },
+				"nickname": { "type": "string" },
+				"headImage": { "type": "string" },
+				"passport": { "type": "string" },
+				"mail": { "type": "string" },
+				"spaceUsed": { "type": "number" },
+				"spacePermanent": { "type": "number" },
+				"spaceTemp": { "type": "number" },
+				"spaceTempExpr": { "type": ["string", "number"] }, // 好像这个字段有问题,和文档不一致, 实际是个数字, 可能我没有临时空间
+				"vip": { "type": "boolean" },
+				"directTraffic": { "type": "number" },
+				"isHideUID": { "type": "boolean" }
+			},
+			"required": [
+				"uid",
+				"nickname",
+				"headImage",
+				"passport",
+				"mail",
+				"spaceUsed",
+				"spacePermanent",
+				"spaceTemp",
+				"spaceTempExpr",
+				"vip",
+				"directTraffic",
+				"isHideUID"
+			]
+		}
+	}
+}

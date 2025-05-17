@@ -1,0 +1,18 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+.ruff_cache
+.pytest_cache
+.vscode
+*.rar
+*.zip
+drop
+图吧工具箱2409安装程序.exe
+t.py
