@@ -13,7 +13,7 @@ def test_pan123openapi():
     fname = "图吧工具箱2409安装程序.exe"
     assert Path(fname).exists(), f"文件 {fname} 不存在"
 
-    pan123.upload(fname, fname, 0, overwrite=True)
+    pan123.upload(fname, fname, 0, overwrite=True, duplicate=True)
     print("上传完成")
 
 
@@ -34,7 +34,7 @@ def test_detail():
     print(res.data)
 
 
-if __name__ == "__main__":
-    test_pan123openapi()
-    # test_pan123openapi()
-    # test_detail()
+# if __name__ == "__main__":
+#     test_pan123openapi()
+#     # test_pan123openapi()
+#     # test_detail()

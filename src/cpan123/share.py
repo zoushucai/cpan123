@@ -57,7 +57,7 @@ class Share(BaseApiClient):
             sharePwd (str): 设置分享链接提取码
             trafficSwitch (int): 免登录流量包开关, 1 关闭免登录流量包, 2 打开免登录流量包
             trafficLimitSwitch (int): 选填	免登录流量限制开关 1 关闭限制 2 打开限制
-            trafficLimit (int): 免登陆限制流量 (单位：字节)
+            trafficLimit (int): 免登陆限制流量 (单位:字节)
             skip (bool): 是否跳过响应数据的模式校验
         """
 
@@ -82,10 +82,10 @@ class Share(BaseApiClient):
         """修改分享链接
 
         Args:
-            shareIdList (int): 分享链接ID列表，数组长度最大为100
+            shareIdList (int): 分享链接ID列表,数组长度最大为100
             trafficSwitch (Optional[str], optional): 免登录流量包开关 1 关闭免登录流量包, 2 打开免登录流量包
             trafficLimitSwitch (Optional[str], optional): 免登录流量限制开关 1 关闭限制 2 打开限制
-            trafficLimit (Optional[float], optional): 免登陆限制流量 (单位：字节)
+            trafficLimit (Optional[float], optional): 免登陆限制流量 (单位:字节)
             skip (bool): 是否跳过响应数据的模式校验, 原因在于没有返回值
         """
 

@@ -1,10 +1,6 @@
 import importlib.resources as pkg_resources
-import os
-import platform
-import subprocess
 import sys
 import warnings
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
@@ -13,8 +9,8 @@ import requests
 from jsonpath import jsonpath
 from jsonschema import validate
 from pydantic import Field, TypeAdapter, dataclasses
-from tenacity import retry, stop_after_attempt, wait_random
 
+from .auth import Auth
 from .checkdata import BaseResponse, DataResponse, JsonInput
 
 BASE_URL = "https://open-api.123pan.com"
@@ -51,8 +47,8 @@ def get_api(filepath: str, *args: Any) -> dict:
     获取 API.
 
     Args:
-        filepath (str): API 所属分类,即 `apijson/***.json`下的文件名（不含后缀名）
-        *args (Any): 预留的可选参数（当前未使用）.
+        filepath (str): API 所属分类,即 `apijson/***.json`下的文件名(不含后缀名)
+        *args (Any): 预留的可选参数(当前未使用).
 
     Returns:
         dict, 该 API 的内容.
@@ -69,7 +65,7 @@ def get_api(filepath: str, *args: Any) -> dict:
             path = pkg_resources.files("cpan123.apijson").joinpath(str(path))
             path = Path(str(path))
         except ModuleNotFoundError:
-            print("❌ 找不到模块 `cpan123.apijson`，请确认路径或依赖包正确")
+            print("❌ 找不到模块 `cpan123.apijson`,请确认路径或依赖包正确")
             sys.exit(1)
 
     if not path.exists():
@@ -101,164 +97,6 @@ def get_api(filepath: str, *args: Any) -> dict:
             print(f"❌ 参数 `{arg}` 不存在于 API 数据中")
             sys.exit(1)
     return _replace_values(data)
-
-
-def set_env_var(key: str, value: str):
-    system = platform.system().lower()
-    if system == "windows":
-        value_escaped = value.replace("`", "``").replace('"', '`"')
-        subprocess.run(
-            [
-                "powershell",
-                "-Command",
-                f'[Environment]::SetEnvironmentVariable("{key}", "{value_escaped}", "User")',
-            ]
-        )
-    elif system in ["linux", "darwin"]:
-        subprocess.run(["bash", "-c", f"export {key}='{value}'"])
-
-
-@dataclasses.dataclass
-class Auth:
-    """用于获取和设置访问令牌的类.
-
-    在每次访问 `.token` 时,会自动检查令牌是否存在或过期, 且提供了 clientID/clientSecret，就会自动刷新。 而`.access_token` 不会,是固定的值
-
-    Attributes:
-        clientID (str): 客户端 ID
-        clientSecret (str): 客户端密钥
-        access_token (str): 访问令牌
-        access_token_expiredAt (str): 访问令牌过期时间
-        token (str): 访问令牌, 每次访问时自动检查是否过期并刷新
-
-
-
-    Example:
-    ```python
-    from cpan123 import Auth
-    auth = Auth() # 会自动从环境变量中获取 access_token, 没有则报错
-    print(auth.access_token) # 打印 access_token
-
-    # 或者手动设置
-    from cpan123 import Auth
-    auth = Auth(clientID="your_client_id", clientSecret="your_client_secret")
-    print(auth.access_token) # 打印 access_token
-    # 强制刷新
-    auth.refresh_access_token()
-    # 检查是否过期,自动更新
-    print(auth.token)
-
-    # 或者
-    auth = Auth(access_token="your_access_token")
-    print(auth.access_token) # 打印 access_token,固定值
-    ```
-    """
-
-    clientID: Optional[str] = None
-    clientSecret: Optional[str] = None
-
-    access_token: Optional[str] = None
-    access_token_expiredAt: Optional[str] = None  # ISO8601格式字符串
-
-    def __post_init__(self) -> None:
-        """
-        初始化 Auth 对象
-        """
-        self.clientID = self.clientID or os.getenv("PAN123CLIENTID")
-        self.clientSecret = self.clientSecret or os.getenv("PAN123CLIENTSECRET")
-        self.access_token = self.access_token or os.getenv("PAN123TOKEN")
-        self.access_token_expiredAt = self.access_token_expiredAt or os.getenv(
-            "PAN123TOKEN_EXPIREDAT"
-        )
-
-        # 自动获取 access_token（如果未提供，但提供了 clientID 和 clientSecret）
-        if not self.access_token:
-            if self.clientID and self.clientSecret:
-                self.refresh_access_token()
-            else:
-                raise ValueError("❌ No access token or client credentials found")
-
-    def _is_token_expired(self) -> bool:
-        """判断 access_token 是否过期"""
-        if not self.access_token_expiredAt:
-            return False  # 没有过期时间，认为没过期
-        expire_dt = datetime.fromisoformat(self.access_token_expiredAt)
-        now = datetime.now()
-        return now >= expire_dt
-
-    @property
-    def token(self) -> str | None:
-        """
-        每次访问时自动检查是否过期并刷新
-        """
-        if self._is_token_expired():
-            if self.clientID and self.clientSecret:
-                print("🔁 Token 已过期，正在刷新...")
-                self.refresh_access_token()
-            else:
-                print("⚠️ Token 已过期，缺少 clientID/clientSecret，无法刷新, 退出程序")
-                sys.exit(1)
-
-        return self.access_token
-
-    def set_access_token(self, access_token: str) -> "Auth":
-        """
-        设置 access_token
-
-        Args:
-            access_token (str): 访问令牌
-        """
-        self.access_token = access_token
-        self.access_token_expiredAt = None
-        return self
-
-    @retry(stop=stop_after_attempt(3), wait=wait_random(min=1, max=5))
-    def refresh_access_token(self) -> "Auth":
-        """重新获取 access_token, 或手动设置 access_token. 用于强制刷新
-
-        强制刷新 access_token, 前提是存在 clientID 和 clientSecret.
-
-        - 如果不存在且没有 access_token, 则退出
-        - 如果不存在且有 access_token, 则不刷新access_token, 打印警告
-
-        """
-
-        if not self.access_token:
-            if not (self.clientID and self.clientSecret):
-                print("❌ No clientID/clientSecret found, and no access_token, exiting")
-                sys.exit(1)
-            # 有 clientID 和 clientSecret，但没有 token → 尝试刷新
-            self.refresh_access_token()
-        else:
-            if not (self.clientID and self.clientSecret):
-                print("⚠️ access_token 存在，但未提供 clientID/clientSecret，跳过刷新")
-                return self
-
-        headers = {"Platform": PLATFORM}
-        response = requests.post(
-            BASE_URL + "/api/v1/access_token",
-            data={"clientID": self.clientID, "clientSecret": self.clientSecret},
-            headers=headers,
-        )
-        response_data = response.json()["data"]
-        self.access_token = response_data["accessToken"]
-        self.access_token_expiredAt = response_data["expiredAt"]
-        if not self.access_token or not self.access_token_expiredAt:
-            print("❌ 获取 access_token 失败")
-            raise ValueError("❌ Failed to get access token")
-
-        # 将 access_token 存入环境变量
-        os.environ["PAN123TOKEN"] = self.access_token
-        # 将 access_token_expiredAt 存入环境变量
-        os.environ["PAN123TOKEN_EXPIREDAT"] = self.access_token_expiredAt
-
-        # 设置环境变量
-        set_env_var("PAN123TOKEN", self.access_token)
-        set_env_var("PAN123TOKEN_EXPIREDAT", self.access_token_expiredAt)
-        # 设置环境变量
-        set_env_var("PAN123CLIENTID", self.clientID)
-        set_env_var("PAN123CLIENTSECRET", self.clientSecret)
-        return self
 
 
 @dataclasses.dataclass
@@ -312,8 +150,17 @@ class Api:
     def update_params(self, **kwargs) -> "Api":
         return self._update_attr("params", **kwargs)
 
-    def update_files(self, **kwargs) -> "Api":
-        return self._update_attr("files", **kwargs)
+    def update_files(self, arg) -> "Api":
+        self.files = arg
+        return self
+
+    def update_method(self, method: str) -> "Api":
+        self.method = method.upper()
+        return self
+
+    def update_url(self, url: str) -> "Api":
+        self.url = url
+        return self
 
     def update_headers(self, **kwargs) -> "Api":
         self.headers = kwargs
@@ -357,6 +204,8 @@ class Api:
         """
         # 处理请求参数
         config: dict = self._prepare_request()
+        # print("---" * 10)
+        # print(f"🔍 请求参数: {config}")
         response = requests.request(**config)
 
         response.raise_for_status()
@@ -443,3 +292,10 @@ class Api:
             return False
 
         return True
+
+
+__all__ = [
+    "get_api",
+    "Api",
+    "Auth",
+]

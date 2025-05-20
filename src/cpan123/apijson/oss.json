@@ -53,7 +53,7 @@
 			},
 			// 预上传ID(如果 reuse 为 true 时,该字段不存在, 这里文档有误,  当reuse为true时, preuploadID 字段为空
 			// 更改下面的逻辑
-			// 当 reuse == true 时，允许 preuploadID 可以完全不出现； 或者出现，但值是空字符串 ""。
+			// 当 reuse == true 时,允许 preuploadID 可以完全不出现； 或者出现,但值是空字符串 "".
 			"required": ["reuse", "sliceSize"],
 			"if": {
 				"properties": {

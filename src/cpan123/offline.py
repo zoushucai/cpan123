@@ -26,9 +26,9 @@ class Offline(BaseApiClient):
 
         Args:
             url (str): 下载链接
-            fileName (str, optional): 自定义文件名称 （需携带图片格式，支持格式：png, gif, jpeg, tiff, webp,jpg,tif,svg,bmp）
-            dirID (int, optional): 选择下载到指定目录ID。 示例:10023, 注:不支持下载到根目录,默认会下载到名为"来自:离线下载"的目录中
-            callBackUrl (str, optional): 回调地址,当文件下载成功或者失败,均会通过回调地址通知。
+            fileName (str, optional): 自定义文件名称 (需携带图片格式,支持格式:png, gif, jpeg, tiff, webp,jpg,tif,svg,bmp)
+            dirID (int, optional): 选择下载到指定目录ID.  示例:10023, 注:不支持下载到根目录,默认会下载到名为"来自:离线下载"的目录中
+            callBackUrl (str, optional): 回调地址,当文件下载成功或者失败,均会通过回调地址通知.
             skip (bool): 是否跳过响应数据的模式校验
         """
 

@@ -12,7 +12,7 @@ class User(BaseApiClient):
         super().__init__(filepath="user", auth=auth)
 
     @auto_args_call_api()
-    def info(self) -> DataResponse:  # type: ignore
+    def info(self, skip=False) -> DataResponse:  # type: ignore
         """
         获取用户信息
         """

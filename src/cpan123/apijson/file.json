@@ -28,7 +28,7 @@
 			},
 			// 预上传ID(如果 reuse 为 true 时,该字段不存在, 这里文档有误,  当reuse为true时, preuploadID 字段为空
 			// 更改下面的逻辑
-			// 当 reuse == true 时，允许 preuploadID 可以完全不出现； 或者出现，但值是空字符串 ""。
+			// 当 reuse == true 时,允许 preuploadID 可以完全不出现； 或者出现,但值是空字符串 "".
 			"required": ["reuse", "sliceSize"],
 			"if": {
 				"properties": {
@@ -54,7 +54,7 @@
 		"method": "POST",
 		"url": "/upload/v1/file/get_upload_url",
 		"data": {
-			"parentFileID": "number: required",
+			"preuploadID": "string: required",
 			"sliceNo": "number: required"
 		},
 		"schema_": {
@@ -96,7 +96,7 @@
 		"method": "POST",
 		"url": "/upload/v1/file/upload_complete",
 		"data": {
-			"parentFileID": "number: required"
+			"preuploadID": "number: required"
 		},
 		"schema_": {
 			"type": "object",
@@ -112,7 +112,7 @@
 		"method": "POST",
 		"url": "/upload/v1/file/upload_async_result",
 		"data": {
-			"parentFileID": "number: required"
+			"preuploadID": "number: required"
 		},
 		"schema_": {
 			"type": "object",
@@ -237,7 +237,7 @@
 						"required": [
 							"fileId",
 							"filename",
-							"parentFileID",
+							"parentFileId",
 							"type",
 							"size",
 							"etag",

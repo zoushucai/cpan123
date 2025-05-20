@@ -157,14 +157,14 @@ class UploadInChunks:
         chunksize: int = 1 << 13,
     ) -> None:
         """
-        初始化一个支持分块上传的文件读取器。
+        初始化一个支持分块上传的文件读取器.
 
         Args:
-            fp (BinaryIO): 文件对象（必须是以二进制方式打开的）。
-            length (int): 文件总大小（字节数）。
-            idx (int): 当前任务的索引，用于在 progress_ref 中更新进度。
-            progress_ref (List[float]): 外部进度列表的引用。
-            chunksize (int, optional): 每次读取的字节大小，默认 8192(8KB)
+            fp (BinaryIO): 文件对象(必须是以二进制方式打开的).
+            length (int): 文件总大小(字节数).
+            idx (int): 当前任务的索引,用于在 progress_ref 中更新进度.
+            progress_ref (List[float]): 外部进度列表的引用.
+            chunksize (int, optional): 每次读取的字节大小,默认 8192(8KB)
         """
         self.fp = fp
         self.idx = idx
@@ -175,22 +175,22 @@ class UploadInChunks:
 
     def __iter__(self) -> "UploadInChunks":
         """
-        实现迭代器接口。
+        实现迭代器接口.
 
         Returns:
-            UploadInChunks: 迭代器本身。
+            UploadInChunks: 迭代器本身.
         """
         return self
 
     def __next__(self) -> bytes:
         """
-        迭代读取下一个数据块。
+        迭代读取下一个数据块.
 
         Returns:
-            bytes: 下一块文件数据。
+            bytes: 下一块文件数据.
 
         Raises:
-            StopIteration: 当读取完毕时抛出。
+            StopIteration: 当读取完毕时抛出.
         """
         if self.readsofar >= self.totalsize:
             raise StopIteration
@@ -208,10 +208,10 @@ class UploadInChunks:
 
     def __len__(self) -> int:
         """
-        返回总字节数。
+        返回总字节数.
 
         Returns:
-            int: 文件总大小。
+            int: 文件总大小.
         """
         return self.totalsize
 

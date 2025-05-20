@@ -2,8 +2,9 @@ import sys
 from pathlib import Path
 from typing import Dict
 
-from cpan123.utils.checkdata import JsonInput
 from pydantic import TypeAdapter
+
+from cpan123.utils.checkdata import JsonInput
 
 
 def test_json():

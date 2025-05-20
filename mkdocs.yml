@@ -5,17 +5,18 @@ site_author: zsc
 
 nav:
   - 介绍: index.md
-  - 主接口: pan.md
-  - Auth类: auth.md
   - File类: file.md
   - Share类: share.md
   - Offline 类: offline.md
   - User类: user.md
   - DirectLink 类: directlink.md
   - Oss 类: oss.md
-  - 更多: 
-      - 数据验证: checkdata.md
-      - 接口的编写: interface.md
+  - 封装的接口: 
+      - 主接口: more/pan.md
+      - Auth类: more/auth.md
+      - 百度到123秒传: more/baiduTo123.md
+      - 数据验证: more/checkdata.md
+      - 接口的编写: more/interface.md
   
 edit_uri: edit/main/docs # 编辑按钮跳转的链接
 repo_url: https://github.com/zoushucai/cpan123 # 右上角点击跳转的链接

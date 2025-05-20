@@ -16,3 +16,9 @@ wheels/
 drop
 图吧工具箱2409安装程序.exe
 t.py
+.env
+m.py
+data.json
+data2.json
+tdata
+file_list.json

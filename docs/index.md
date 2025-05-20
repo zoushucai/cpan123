@@ -29,76 +29,19 @@
 pip install cpan123
 ```
 
-### 授权
-
-
-!!! note 
-    建议使用环境变量, token和client_id 二选一即可.
-
-    - PAN123TOKEN: 授权 token
-    - PAN123TOKEN_EXPIREDAT: 授权 token 过期时间
-    - PAN123CLIENTID: 客户端 ID
-    - PAN123CLIENTSECRET: 客户端密钥
-
-
-```python
-# 方式1: 使用环境变量中的授权信息
-from cpan123 import Pan123openAPI
-pan123 = Pan123openAPI() 
-
-# 方式2: 使用授权信息
-from cpan123 import Pan123openAPI, Auth
-auth = Auth(clientID="your_client_id", clientSecret="your_client_secret")
-print(auth.access_token) # 打印 access_token
-
-# 或者
-auth = Auth(access_token="your_access_token")
-print(auth.access_token) # 打印 access_token
-
-# 然后传入 Pan123openAPI中
-pan123 = Pan123openAPI(auth=auth)
-
-```
-
 ### 使用
 
-```python
-from cpan123 import Pan123openAPI
-from pathlib import Path
+- 关于授权参考: [Auth](./more/auth.md)
 
-pan123 = Pan123openAPI()
-
-# # 下载单个文件
-fname = "xxxx.pt"
-pan123.download(fname)
-
-# # 下载多个文件
-# filenames = ["xxxx1.pt", "xxx2.pt"]
-# pan123.download(filenames)
-# 上传文件
-fname = "xxxxx.zip"
-pan123.upload(fname, fname, 0, overwrite=True)
-print("上传完成")
-
-# 上传文件到oss(图床)
-imgfile = "xxxx.png"
-res = pan123.upload_oss(imgfile, Path(imgfile).name)
-print(res)
-```
-
-- 推荐上传与下载的文件都在根目录下, 且是文件
-
-- 如果一个文件在云端过多, 可能会出一定的bug, 我遇到过, 当同一个文件在云端回收站和根目录下都有时, 下载时会过滤, 结果发现找不到非回收站的文件. 猜测和缓存之类的有关
-
+- 使用方法参考: [Pan123openAPI](./more/pan.md)
 
 
 ### 个人主要用的三个功能已封装.
 
-- [x] 上传文件
-- [x] 下载文件
+- [x] 上传文件(夹)
+- [x] 下载文件(夹)
 - [x] 上传图片到oss
 
-建议单个文件下载与上传, 暂不支持文件夹的上传与下载.
 
 ### 已实现的接口
 
@@ -116,5 +59,12 @@ print(res)
 ## 参考: 
 
 - [123云盘开放平台](https://123yunpan.yuque.com/org-wiki-123yunpan-muaork/cr6ced/ppsuasz6rpioqbyt)
+
+
+## Bug 反馈
+
+- 本人编程能力有限,程序可能会有bug,如果有问题请反馈
+
+- 如果有好的建议,也欢迎反馈 [Issues](https://github.com/zoushucai/cpan123/issues)
 
 
