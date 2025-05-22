@@ -22,7 +22,7 @@ def test_list_v2():
     # file_list = pan123.file.list_v2(0, 10, "国科")
     # print(file_list.data)
 
-    fileinfo = pan123.file.list_v2(0, 50)
+    fileinfo = pan123.file.list_v2(0, 10)
     print("----" * 10)
     print(f"获取文件信息: \n{fileinfo.data}")
 
@@ -34,7 +34,5 @@ def test_detail():
     print(res.data)
 
 
-# if __name__ == "__main__":
-#     test_pan123openapi()
-#     # test_pan123openapi()
-#     # test_detail()
+if __name__ == "__main__":
+    test_list_v2()

@@ -224,9 +224,11 @@ class File(BaseApiClient):
             lastFileId (int, optional): 翻页查询时需要填写
             skip (bool): 是否跳过响应数据的模式校验
         """
-        # 这里的函数体根本不会执行, 因为被装饰器给劫持了, 返回的结果是装饰器的返回值,所以对参数进行校验无效
         # 如果要对参数进行校验,需要 Field 等参数校验方法
         # 默认已开启函数参数校验
+        # 也可以在函数体中进行参数校验了, 不能参与计算
+        # print(self.list_v2.__name__)
+        # print(self.list_v2.__doc__)
 
     @auto_args_call_api("list_v1")
     def list_v1(

@@ -1,5 +1,6 @@
 import importlib.resources as pkg_resources
 import sys
+import time
 import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -11,35 +12,8 @@ from jsonschema import validate
 from pydantic import Field, TypeAdapter, dataclasses
 
 from .auth import Auth
-from .checkdata import BaseResponse, DataResponse, JsonInput
-
-BASE_URL = "https://open-api.123pan.com"
-PLATFORM = "open_platform"
-HEADERS = {
-    # "Authorization": "Bearer " + self.auth.access_token,
-    # "Content-Type": "application/json",
-    "Platform": PLATFORM,
-}
-
-
-def _replace_values(obj: Any) -> Any:
-    if isinstance(obj, dict):
-        new_dict = {}
-        for key, value in obj.items():
-            # 替换可选值为 None
-            if isinstance(value, str) and ": optional" in value:
-                value = None
-            elif isinstance(value, str) and ": required" in value:
-                value = value.replace(": required", "")
-            else:
-                value = _replace_values(value)
-            new_dict[key] = value
-        return new_dict
-
-    elif isinstance(obj, list):
-        return [_replace_values(item) for item in obj]
-    else:
-        return obj
+from .checkdata import BaseResponse, JsonInput
+from .const import BASE_URL, HEADERS, TEMPLATE_PATTERN
 
 
 def get_api(filepath: str, *args: Any) -> dict:
@@ -80,13 +54,6 @@ def get_api(filepath: str, *args: Any) -> dict:
             print(f"❌ JSON 解析失败: {path}\n错误: {e}")
             sys.exit(1)
 
-    # # 对json文件进行验证
-    # for name, conf in data.items():
-    #     try:
-    #         JsonInput.model_validate(conf)
-    #     except Exception as e:
-    #         print(f"❌ 校验失败: {name}\n内容: {conf}\n错误: {e}")
-    #         sys.exit(1)
     list_adapter = TypeAdapter(Dict[str, JsonInput])
     list_adapter.validate_python(data)
     # 按参数索引嵌套数据
@@ -96,7 +63,7 @@ def get_api(filepath: str, *args: Any) -> dict:
         except KeyError:
             print(f"❌ 参数 `{arg}` 不存在于 API 数据中")
             sys.exit(1)
-    return _replace_values(data)
+    return data
 
 
 @dataclasses.dataclass
@@ -114,7 +81,7 @@ class Api:
     comment: str = ""
     auth: Auth = Field(default_factory=Auth)
     headers: dict = Field(default_factory=dict)
-    files: Optional[dict] = Field(default_factory=dict)
+    files: Optional[Any] = None
     skip: bool = Field(default=False)
 
     def __post_init__(self) -> None:
@@ -131,17 +98,33 @@ class Api:
         self.headers = self.headers or HEADERS.copy()
         self.files = self.files or None
 
-    def update_auth(self, **kwargs) -> "Api":
-        for key in ["access_token", "clientID", "clientSecret"]:
-            if key in kwargs:
-                setattr(self.auth, key, kwargs.pop(key))
-        return self
-
     def _update_attr(self, attr: str, **kwargs) -> "Api":
         if "skip" in kwargs:
             self.skip = kwargs.pop("skip")
         value = {k: v for k, v in kwargs.items() if v is not None}
+        # 如果 v 是 list,则将其转换为 str
+        for k, v in value.items():
+            if isinstance(v, list):
+                value[k] = json5.dumps(v, ensure_ascii=False, separators=(",", ":"))
+            elif isinstance(v, dict):
+                value[k] = json5.dumps(v, ensure_ascii=False, separators=(",", ":"))
         setattr(self, attr, value)
+        return self
+
+    def update_attr2(self) -> "Api":
+        def stringify_values(obj):
+            if isinstance(obj, dict):
+                return {
+                    k: json5.dumps(v, ensure_ascii=False, separators=(",", ":"))
+                    if isinstance(v, (dict, list))
+                    else v
+                    for k, v in obj.items()
+                }
+            return obj  # 保持原样（非 dict 不处理）
+
+        self.data = stringify_values(self.data)
+        self.params = stringify_values(self.params)
+
         return self
 
     def update_data(self, **kwargs) -> "Api":
@@ -166,11 +149,46 @@ class Api:
         self.headers = kwargs
         return self
 
+    def _resolve_key_path(self, data: Any, key_path: str) -> Any:
+        """
+        解析嵌套的 key 路径，支持 {{ key }} 和 {{ key.key2 }} 的格式。
+        优先支持字典和 Auth 对象属性查找，未找到时保留原模板字符串。
+        """
+        keys = key_path.split(".")
+        val = data
+        for key in keys:
+            if isinstance(val, dict):
+                val = val.get(key)
+            elif hasattr(val, key):
+                val = getattr(val, key)
+            else:
+                return f"{{{{ {key_path} }}}}"  # fallback: 保留模板格式
+        return val if val is not None else f"{{{{ {key_path} }}}}"
+
+    def resolve_templates(self, data: Any) -> Any:
+        """
+        递归解析模板字符串，支持 {{ key }} 和 {{ a.b.c }} 格式，处理字符串、字典和列表。
+        """
+
+        def _template(string: str) -> str:
+            return TEMPLATE_PATTERN.sub(
+                lambda match: str(self._resolve_key_path(self.auth, match.group(1))),
+                string,
+            )
+
+        if isinstance(data, str):
+            return _template(data)
+        elif isinstance(data, dict):
+            return {k: self.resolve_templates(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.resolve_templates(v) for v in data]
+        return data
+
     def _prepare_request(self) -> dict:
         """
         准备请求参数
         """
-
+        self.update_attr2()
         headers = self.headers.copy()
         if not self.files:
             headers["Content-Type"] = "application/json"
@@ -191,11 +209,16 @@ class Api:
         }
 
         config = {k: v for k, v in config.items() if v is not None}
+        if config.get("files") is not None:
+            # 如果有文件上传,则不需要设置 Content-Type
+            # 因为 requests 会自动设置
+            config["headers"].pop("Content-Type", None)
+        # 解析模板
+        config = self.resolve_templates(config)
+
         return config
 
-    def request(
-        self, byte: bool = False
-    ) -> Union[int, str, dict, bytes, None, DataResponse]:
+    def request(self, byte: bool = False) -> Union[int, str, dict, bytes, None]:
         """
         发送请求并返回结果
 
@@ -206,25 +229,34 @@ class Api:
         config: dict = self._prepare_request()
         # print("---" * 10)
         # print(f"🔍 请求参数: {config}")
-        response = requests.request(**config)
+        for _ in range(3):
+            response = requests.request(**config)
+            # print("response.url:", response.url)
+            response.raise_for_status()
+            code = response.json().get("code", None)
+            if code == 429:
+                # todo: 需要根据不同的 code 进行处理
+                # 请求太频繁
+                time.sleep(3)
+            elif code == 401:
+                self.auth.refresh_access_token()
+                # 权益已过期
+            else:
+                break
 
-        response.raise_for_status()
         if byte:
             return response.text
 
         if self.skip:
             # 如果不需要验证响应数据的 schema_,则直接返回
-            return DataResponse(response)
-
+            return response.json()
         if self.schema_:
             res_json: dict = response.json()
-            BaseResponse.model_validate(res_json)
+            BaseResponse.model_validate(res_json)  # 校验响应数据的格式
+            # 由于 123 运行返回的数据都有 data,因此,只需要校验 data 字段
             if res_json.get("data"):
-                validate(
-                    instance=res_json["data"],
-                    schema=self.schema_,
-                )
-                return DataResponse(response)
+                validate(instance=res_json["data"], schema=self.schema_)
+                return response.json()
             else:
                 print(f"❌ 响应数据: {response.text}")
                 print(f"❌ 响应数据: {res_json}")
@@ -236,19 +268,19 @@ class Api:
         if self.response_schema:
             check = self.validate_response_schema(response, self.response_schema)
             if check:
-                return DataResponse(response)
+                return response.json()
             else:
                 raise ValueError("❌ 利用 response_schema 校验失败")
 
-        return DataResponse(response)
+        return response.json()
 
     @property
-    def result(self) -> DataResponse:
+    def result(self) -> dict:
         res = self.request()
-        if isinstance(res, DataResponse):
+        if isinstance(res, dict):
             return res
         else:
-            raise ValueError("❌ 响应数据解析失败")
+            raise ValueError(f"❌ 响应数据解析失败: {res}")
 
     @staticmethod
     def validate_response_schema(response: requests.Response, schema_: dict) -> bool:
@@ -266,6 +298,8 @@ class Api:
         type_mapping = {
             "string": str,
             "number": (int, float),
+            "int": int,
+            "float": float,
             "boolean": bool,
             "bool": bool,
             "object": dict,
@@ -273,7 +307,9 @@ class Api:
         }
 
         errors = []
-
+        # 校验响应数据, 和普通的 jsonschema 校验不同的是,这里的 schema_ 是一个 dict
+        # 比如 { "key": "string" } 代表 key 的值是 string 类型
+        # 比如 {"key": "int"} 代表 key 的值是 int 类型
         for k, rule in schema_.items():
             expected_type = type_mapping.get(rule["type"])
             actual = jsonpath(res_json, f"$..{k}")
@@ -281,14 +317,12 @@ class Api:
                 errors.append(f"Key '{k}' 不存在于响应中")
                 continue
             if expected_type and not isinstance(actual[0], expected_type):
-                errors.append(
-                    f"Key '{k}' 的类型为 {type(actual[0]).__name__}, 应为 {rule['type']}"
-                )
+                errors.append(f"Key '{k}' 预期类型: {rule['type']}")
 
         if errors:
             for error in errors:
                 print(f"❌ {error}")
-            warnings.warn(f"⚠️ 校验失败响应: {res_json}", stacklevel=2)
+            warnings.warn(f"❌ 校验失败响应: {res_json}", stacklevel=2)
             return False
 
         return True

@@ -1,5 +1,6 @@
-from typing import BinaryIO, Dict, List, Optional
+from typing import BinaryIO, Dict, List, Literal, Optional
 
+import requests
 from pydantic import BaseModel, ConfigDict, field_validator
 
 
@@ -29,7 +30,7 @@ class BaseResponse(BaseModel):
     基础响应类.
     """
 
-    code: int = 0
+    code: Literal[0]
     message: str = ""
     data: Optional[dict] = None
     x_traceID: Optional[str] = None
@@ -38,7 +39,7 @@ class BaseResponse(BaseModel):
 class DataResponse:
     response_data = None
 
-    def __init__(self, response=None, code=0, message="", data=None):
+    def __init__(self, response=None):
         """
         服务器返回数据类.
 
@@ -50,15 +51,21 @@ class DataResponse:
         if response is None:
             self.response = None
             self.response_data = {
-                "code": code,
-                "message": message,
-                "data": data,
+                "code": -1,
+                "message": "",
+                "data": "",
                 "x-traceID": "",
             }
             return
-        else:
+        elif isinstance(response, dict):
+            self.response = None
+            self.response_data = response
+        elif isinstance(response, requests.Response):
             self.response = response
-            self.response_data = response.json()
+            try:
+                self.response_data = response.json()
+            except ValueError:
+                self.response_data = response.text
 
     @property
     def data(self):

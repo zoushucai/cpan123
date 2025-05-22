@@ -35,33 +35,11 @@ from pathlib import Path
 from typing import Optional
 
 import requests
-from dotenv import find_dotenv, load_dotenv, set_key
+from dotenv import set_key
 from pydantic import dataclasses
 from tenacity import retry, stop_after_attempt, wait_random
 
-BASE_URL = "https://open-api.123pan.com"
-PLATFORM = "open_platform"
-HEADERS = {
-    # "Authorization": "Bearer " + self.auth.access_token,
-    # "Content-Type": "application/json",
-    "Platform": PLATFORM,
-}
-
-
-def load_env():
-    """加载 .env 配置(优先项目目录,其次系统目录)"""
-
-    # 在当前目录下查找 .env 文件,找到则返回路径, 否则返回空字符串
-    dotenv_path: str = find_dotenv()
-    if dotenv_path:
-        load_dotenv(dotenv_path, override=True)
-    else:
-        # 尝试从系统默认目录加载
-        system_env_path = Path.home() / ".env.pan123"
-        if system_env_path.exists():
-            load_dotenv(system_env_path, override=True)
-        else:
-            return
+from .const import BASE_URL, PLATFORM, load_env
 
 
 @dataclasses.dataclass

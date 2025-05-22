@@ -16,19 +16,70 @@ src/cpan123/apijson
 ## 举例
 - 官方的接口 : [获取文件列表](https://123yunpan.yuque.com/org-wiki-123yunpan-muaork/cr6ced/zrip9b0ye81zimv4)
 
+- 采用`json5`的方式读入, 因此可以写注释. 
+
 - 对应的json文件接口的实现, 引入了一些额外的字段:
-	- `schema_` : 是对接口返回值的描述, 用于验证返回值的正确性, 验证返回的data字段是否符合这个描述, 
+	- `schema_` : 是对接口返回值的描述, 用于验证返回值的正确性, 验证响应数据中的 `data` 字段是否符合这个描述,  完全依靠 jsonschema 的语法. 由于 123 网盘返回的格式比较统一, 因此这里只验证 `data` 下的字段即可. 这样编写 jsonschema 简单一些.
 	- `response_schema` : 是对接口返回值的描述, 用于验证返回值的正确性(与上面的区别,在于这个是简单的验证,只要返回的字段中存在指定的key, 就可以了)
-	- `comment` : 是对接口的描述,无意义
+	- `comment` : 是对接口的描述,无意义(后续会被过滤掉)
 
-- 只能包含以下字段: `method`, `url`, `data`, `params`, `schema_`, `comment`, `response_schema`
+- 只能包含以下字段: `method`, `url`, `data`, `params`, `schema_`, `comment`, `response_schema`, `files` 
+
+- 如果`data` 和 `params` 的值中有 `list` 或者 `dict`, 会使用 `json5.dumps` 转换成字符串.
+
+	
+一般字段后面会跟有值来解释和说明其参数的类型, 类似 jsonschema语法, 为什么不采用jsonschema呢? 因为jsonschema的语法太复杂了, 这里采用简化版的语法, 只需要知道类型和是否必须即可, 例如:
+
+```json
+"parentFileId": "number: required",
+```
+
+还可以跟个默认值, 语法如下 (注意分隔符是 `: ` 而不是 `:`, 中间有空格):
+
+```
+default: tpye: optional/required
+
+参数:
+	default: 默认值
+	type: 类型
+	optional: 可选 或者 required: 必须
+```
+
+如果只给出一个分割符, 会根据类型自动判断默认值,实在找不到,就是字符串类型
+```
+type: optional
+# 或者
+: type: required
+```
+
+如果直接写的字符串, 数字字符串, 布尔值, 则会做默认值处理, 类型为字符串
+```json
+"parentFileId": "123",
+```
+
+如果一个参数是必选的, 可以直接写成(类型都可以省略, 如果这个参数没有传递,则会报错)
+```json
+"parentFileId": ": required",
+```
+
+还可以在值中引入模板, (会在环境变量中查找, 如果没有找到, 则保留原值, 后续会被 `Auth` 类中的属性替换成对应的值. )
+
+```json
+"parentFileId": "{{ parentFileId }}",
+```
 
 
-- 下面是获取文件列表的接口的json文件, 其中`list_v2`是接口的名称, `method`是请求方式, `url`是请求的url, `params`是请求参数, `schema_`是返回值的描述, `comment`是对接口的描述
 
-- 采用json5的方式读入, 因此可以写注释.
 
-- 其中 `params` 和`data` 的格式是一样的, 他们对应下面都是一个dict(没有可以为null或不写), 其值我们不关心,但是其key后续会被用到,应该和python的接口保持一致
+### 举例
+
+- 下面是获取文件列表的接口的json文件, 其中 `list_v2`是接口的名称, 其余为参数
+	- `method`是请求方式, 
+	- `url`是请求的url, 
+	- `params`是请求参数, 
+	- `schema_`是返回值的描述, 
+	- `comment`是对接口的描述, 
+
 
 
 ```json
@@ -108,11 +159,6 @@ class File(BaseApiClient):
             lastFileId (int, optional): 翻页查询时需要填写
             skip (bool): 是否跳过响应数据的模式校验
         """
-        # 这里的函数体根本不会执行, 因为被装饰器给劫持了, 返回的结果是装饰器的返回值,所以对参数进行校验无效
-        # 如果要对参数进行校验,需要 Field 等参数校验方法
-        # 默认已开启函数参数校验
-        # 总结: 所以完全不用写函数体
-
 		...
 		...
 ```
