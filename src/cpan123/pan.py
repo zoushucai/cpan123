@@ -521,9 +521,10 @@ class Pan123openAPI:
             last_file_id = None
             while True:
                 res = self.file.list_v2(
-                    parentFileId=current_id, lastFileId=last_file_id
+                    parentFileId=current_id, lastFileId=last_file_id, limit=100
                 )
                 if not res.data or not res.data.get("fileList"):
+                    print(f"❌ 在 {current_id} 下没有找到任何文件")
                     break
 
                 for item in res.data["fileList"]:
@@ -576,7 +577,9 @@ class Pan123openAPI:
         lastFileId = None
 
         while True:
-            res = self.file.list_v2(parentFileId=parentFileId, lastFileId=lastFileId)
+            res = self.file.list_v2(
+                parentFileId=parentFileId, lastFileId=lastFileId, limit=100
+            )
 
             if not res.data or not res.data.get("fileList"):
                 break

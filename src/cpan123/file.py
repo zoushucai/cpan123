@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -208,7 +209,7 @@ class File(BaseApiClient):
     def list_v2(
         self,
         parentFileId: int,
-        limit: int = Field(default=100, gt=0, le=100),
+        limit: int = 100,
         searchData: Optional[str] = None,
         searchMode: Optional[int] = 0,
         lastFileId: Optional[int] = None,
@@ -229,6 +230,9 @@ class File(BaseApiClient):
         # 也可以在函数体中进行参数校验了, 不能参与计算
         # print(self.list_v2.__name__)
         # print(self.list_v2.__doc__)
+        if limit > 100 and limit < 0:
+            print("limit 参数最大值为 100,请修改后重试")
+            sys.exit(1)
 
     @auto_args_call_api("list_v1")
     def list_v1(

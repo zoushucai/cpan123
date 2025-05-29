@@ -34,5 +34,15 @@ def test_detail():
     print(res.data)
 
 
+def test_download():
+    fname = "图吧工具箱2409安装程序.exe"
+    pan123.download(fname, onlyurl=False)
+    assert Path(fname).exists(), f"文件 {fname} 不存在"
+
+    # pan123.upload(fname, fname, 0, overwrite=True, duplicate=True)
+    # print("上传完成")
+
+
 if __name__ == "__main__":
-    test_list_v2()
+    # test_list_v2()
+    test_download()
