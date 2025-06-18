@@ -208,4 +208,5 @@ class Auth:
             set_key(env_path, "PAN123TOKEN", self.access_token)
         if self.access_token_expiredAt:
             set_key(env_path, "PAN123TOKEN_EXPIREDAT", self.access_token_expiredAt)
+        load_env()  # 重新加载环境变量, 确保最新的值被读取
         print(f"✅ 认证信息已保存到 {env_path} 文件中")

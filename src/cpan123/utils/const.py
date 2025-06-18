@@ -15,13 +15,11 @@ def load_env():
     else:
         # 尝试从系统默认目录加载
         system_env_path = Path.home() / ".env.pan123"
+        # print(f"尝试从系统目录加载环境变量: {system_env_path}")
         if system_env_path.exists():
             load_dotenv(system_env_path, override=True)
         else:
             return
-
-
-load_env()
 
 
 BASE_URL = "https://open-api.123pan.com"

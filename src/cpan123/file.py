@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Any, Optional
 
-from pydantic import Field, conlist
+from pydantic import Field
 
 from .utils.api import Auth
 from .utils.baseapiclient import BaseApiClient, auto_args_call_api
@@ -142,7 +143,7 @@ class File(BaseApiClient):
     @auto_args_call_api()
     def trash(
         self,
-        fileIDs: Annotated[list[int], conlist(int, max_length=100)],
+        fileIDs: list[int],
         skip: bool = False,
     ) -> DataResponse:  # type: ignore
         """删除的文件,会放入回收站中
@@ -151,11 +152,14 @@ class File(BaseApiClient):
             fileIDs (list[int]): 文件id数组,一次性最大不能超过 100 个文件
             skip (bool): 是否跳过响应数据的模式校验
         """
+        if len(fileIDs) > 100:
+            print("fileIDs 参数长度最大不超过 100,请修改后重试")
+            sys.exit(1)
 
     @auto_args_call_api()
     def recover(
         self,
-        fileIDs: Annotated[list[int], conlist(int, max_length=100)],
+        fileIDs: list[int],
         skip: bool = False,
     ) -> DataResponse:  # type: ignore
         """将回收站的文件恢复至删除前的位置
@@ -164,11 +168,14 @@ class File(BaseApiClient):
             fileIDs (list): 文件id数组,一次性最大不能超过 100 个文件
             skip (bool): 是否跳过响应数据的模式校验
         """
+        if len(fileIDs) > 100:
+            print("fileIDs 参数长度最大不超过 100,请修改后重试")
+            sys.exit(1)
 
     @auto_args_call_api()
     def delete(
         self,
-        fileIDs: Annotated[list[int], conlist(int, max_length=100)],
+        fileIDs: list[int],
         skip: bool = False,
     ) -> DataResponse:  # type: ignore
         """彻底删除文件前,文件必须要在回收站中,否则无法删除
@@ -177,6 +184,9 @@ class File(BaseApiClient):
             fileIDs (list): 文件id数组,参数长度最大不超过 100
             skip (bool): 是否跳过响应数据的模式校验
         """
+        if len(fileIDs) > 100:
+            print("fileIDs 参数长度最大不超过 100,请修改后重试")
+            sys.exit(1)
 
     @auto_args_call_api()
     def detail(
@@ -208,7 +218,7 @@ class File(BaseApiClient):
     def list_v2(
         self,
         parentFileId: int,
-        limit: int = Field(default=100, gt=0, le=100),
+        limit: int = 100,
         searchData: Optional[str] = None,
         searchMode: Optional[int] = 0,
         lastFileId: Optional[int] = None,
@@ -229,6 +239,9 @@ class File(BaseApiClient):
         # 也可以在函数体中进行参数校验了, 不能参与计算
         # print(self.list_v2.__name__)
         # print(self.list_v2.__doc__)
+        if limit > 100 and limit < 0:
+            print("limit 参数最大值为 100,请修改后重试")
+            sys.exit(1)
 
     @auto_args_call_api("list_v1")
     def list_v1(

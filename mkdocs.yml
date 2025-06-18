@@ -13,6 +13,7 @@ nav:
   - Oss 类: oss.md
   - 封装的接口: 
       - 主接口: more/pan.md
+      - cli接口: more/cli.md
       - Auth类: more/auth.md
       - 百度到123秒传: more/baiduTo123.md
       - 数据验证: more/checkdata.md

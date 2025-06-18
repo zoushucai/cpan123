@@ -23,6 +23,7 @@ def auto_args_call_api(arg: Union[Callable, str, None] = None) -> Callable:
             bound_args = inspect.signature(func).bind(self, *args, **kwargs)
             bound_args.apply_defaults()
             arguments = dict(bound_args.arguments)
+            arguments["auth"] = getattr(self, "auth", None)
             arguments.pop("self")
             caller_var.set(func.__name__)
             return self._call_api(api_name or func.__name__, **arguments)
@@ -64,7 +65,7 @@ class BaseApiClient:
             if v is not None
             and k not in (api_instance.params or {})
             and k not in (api_instance.data or {})
-            and k not in ["url", "URL", "skip"]
+            and k not in ["url", "URL", "skip", "auth"]
         }
         if residual_params:
             print(f"❌ 发现多余的参数: {residual_params.keys()}, 请检查 API 配置")

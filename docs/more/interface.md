@@ -143,7 +143,7 @@ class File(BaseApiClient):
     def list_v2(
         self,
         parentFileId: int,
-        limit: int = Field(default=100, gt=0, le=100),
+        limit: int = 100,
         searchData: Optional[str] = None,
         searchMode: Optional[int] = 0,
         lastFileId: Optional[int] = None,

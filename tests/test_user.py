@@ -10,3 +10,10 @@ def test_user():
     user_info = pan123.user.info(skip=True)
     print("----" * 10)
     print(f"获取用户信息: \n{user_info.data}")
+
+
+if __name__ == "__main__":
+    test_user()
+    print("----" * 10)
+    print("测试完成")
+    print("----" * 10)

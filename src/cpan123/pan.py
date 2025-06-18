@@ -4,12 +4,13 @@ import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path, PurePosixPath
-from typing import Any, BinaryIO, Callable, Iterable, List, Optional, Union
+from typing import Any, BinaryIO, Callable, List, Optional, Sequence, Union
 
 import requests
 from py3_wget.main import download_file
 from pydantic import BaseModel, TypeAdapter, validate_call
 from tenacity import retry, stop_after_attempt, wait_random
+from tqdm import tqdm
 
 from .directlink import DirectLink
 from .file import Auth, File
@@ -19,11 +20,11 @@ from .share import Share
 from .user import User
 from .utils.checkdata import UploadInChunks
 
-# 定义允许的单个类型
-SingleDirType = Union[str, int, Path, PurePosixPath]
+# # 定义允许的单个类型
+# SingleDirType = Union[str, int, Path, PurePosixPath]
 
-# 定义参数类型,可以是单个值或这些值的序列对象
-DirnamesType = Union[SingleDirType, Iterable[SingleDirType]]
+# # 定义参数类型,可以是单个值或这些值的序列对象
+# DirnamesType = Union[SingleDirType, Iterable[SingleDirType]]
 
 
 class FileItem(BaseModel):
@@ -184,6 +185,7 @@ class Pan123openAPI:
                 if not overwrite:
                     print(f"⚠️ 文件 {fname} 已存在,跳过下载")
                     continue
+                print(f"⚠️ 文件 {fname} 已存在,将删除...")
                 Path(fname).unlink()
             need_down_files.append(fname)
 
@@ -277,12 +279,12 @@ class Pan123openAPI:
 
         Args:
             filename (str | Path): 上传的文件名
-            upload_name (str | Path | None): 上传云端的文件名. 如果为 None,则使用本地文件名.
-            parentFileID (int | str): 上传到云端的目录 ID. 默认为根目录下, 如果使用use_oss,则为云端根目录为空, 如果不使用oss,则为云端目录为0
+            upload_name (str | Path | None): 上传云端的文件名. 如果为 None,则使用本地文件名. 可以使用多级目录,如 "a/b/c.txt",如果是相对路径,则会相对于根目录上传,如果是绝对路径,则会直接使用该路径.(前提是云端相关的目录已经存在)
+            parentFileID (int | str): 上传到云端的目录 ID. 默认为根目录下, 如果使用use_oss,则为云端根目录为空, 如果不使用oss,则为云端目录为0, 如果上传到子目录中,则会自动查找父目录的 ID并纠正,如果不存在,则会报错.
             overwrite (bool): 是否强制覆盖同名文件. 如果云端存在同名文件,则默认会报错.
             use_oss (bool ): 是否使用 OSS 上传. 默认为 False.
-            duplicate (int | None): 当有相同文件名时,文件处理策略(1保留两者,新文件名将自动添加后缀,2覆盖原文件)
-            containDir (bool): 上传文件是否包含路径,默认fasle
+            duplicate (int | None): 当有相同文件名时,文件处理策略(1保留两者,新文件名将自动添加后缀,2覆盖原文件) 如果 overwrite 为 True, 则默认为 2
+            containDir (bool): 上传文件是否包含路径,默认 False,
 
         Returns:
             文件 ID 或 -1
@@ -294,33 +296,51 @@ class Pan123openAPI:
         file_size = Path(filename).stat().st_size
         uploader = self.oss if use_oss else self.file
 
+        if overwrite:
+            if duplicate is None:
+                duplicate = 2  # 默认覆盖原文件
         # OSS 不能列文件
         if not use_oss:
             if not isinstance(parentFileID, int):
                 raise ValueError("parentFileID 必须为 int 类型")
             if not Path(upload_name).is_absolute():
-                need_find_name = PurePosixPath("/") / str(upload_name).lstrip("./")
-                need_find_name = str(need_find_name)
-
-            file_id, file_item = self.find_file_id_by_path(
-                need_find_name, root_id=parentFileID, is_dir=False
-            )
-            if file_id and overwrite:
-                if isinstance(file_id, int):
-                    file_id = [file_id]
-                if not isinstance(file_id, list):
-                    print("❌ fileId 不是list类型,强制删除失败, 退出")
-                    return -1
-                self.file.trash(file_id)
-                warnings.warn(
-                    f"云端文件 {need_find_name} 强制移除到回收站", stacklevel=2
+                need_find_name = str(PurePosixPath("/") / str(upload_name).lstrip("./"))
+            else:
+                need_find_name = str(upload_name).strip()
+            # 如果有目录,查找目录的 id
+            if str(Path(need_find_name).parent) not in ["", "/"]:
+                # 如果父目录不是根目录,则为上传到根目录下的子目录下
+                file_id, _ = self.find_file_id_by_path(
+                    str(Path(need_find_name).parent), root_id=0, is_dir=True
                 )
+                if not file_id:
+                    raise ValueError(
+                        f"找不到目录 {Path(need_find_name).parent},请先创建"
+                    )
+                else:
+                    parentFileID = int(file_id)
+
+            if parentFileID == 0:
+                file_id, file_item = self.find_file_id_by_path(
+                    str(need_find_name), root_id=parentFileID, is_dir=False
+                )
+                if file_id and overwrite:
+                    if isinstance(file_id, int):
+                        file_id = [file_id]
+                    if not isinstance(file_id, list):
+                        print("❌ fileId 不是list类型,强制删除失败, 退出")
+                        return -1
+                    trash_out = self.file.trash(fileIDs=file_id, skip=True)
+                    # self.file.delete(fileIDs=file_id, skip=True)
+                    print(
+                        f"✅ 云端文件 {need_find_name} 移动到回收站, message: {trash_out.message}"
+                    )
 
         with open(filename, "rb") as f:
             f.seek(0)
             create_kwargs = {
                 "parentFileID": parentFileID,
-                "filename": str(upload_name),
+                "filename": str(Path(upload_name).name),
                 "etag": file_etag,
                 "size": file_size,
                 "duplicate": duplicate,
@@ -343,7 +363,7 @@ class Pan123openAPI:
                 return data_response.data["fileID"]
 
             preuploadID = data_response.data["preuploadID"]
-            print("preuploadID:", preuploadID)
+            # print("preuploadID:", preuploadID)
             sliceSize = data_response.data["sliceSize"]
             total_sliceNo = math.ceil(file_size / sliceSize)
             task_upload_per = [0.0] * total_sliceNo
@@ -353,7 +373,7 @@ class Pan123openAPI:
                 size = min(sliceSize, file_size - start)
                 with open(filename, "rb") as f_slice:
                     f_slice.seek(start)
-                    return self._upload_file_data_common(
+                    success = self._upload_file_data_common(
                         uploader.get_upload_url,
                         f_slice,
                         preuploadID,
@@ -362,34 +382,27 @@ class Pan123openAPI:
                         sliceNo,
                         task_upload_per,
                     )
+                return success, sliceNo
 
             cpu_count = os.cpu_count() or 1
             max_workers = min(max(1, cpu_count - 1), total_sliceNo)
-            print(" 开始上传到云端...")
-            print(f" 文件被拆成 {total_sliceNo} 个分片, 分片大小: {sliceSize} 字节")
-            print(f" 用 {max_workers} 个线程一起上传哦~")
-            if max_workers == 1:
-                for i in range(total_sliceNo):
-                    if not upload_slice(i):
-                        print(f"\n分片 {i} 上传失败,终止上传.")
-                        return -1
-                    avg = sum(task_upload_per) / total_sliceNo
-                    print(f"\r进度: {avg:.1f}%(共{total_sliceNo}分片)", end="")
-            else:
+            m1 = sliceSize // 1024 // 1024
+            w1 = max_workers
+            t1 = total_sliceNo
+            print(f"✅ 用 {w1} 个线程上传 {t1} 个分片, 每个分片大小为 {m1} MB")
+            with tqdm(total=t1, desc="上传进度", unit="slice") as pbar:
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    future_to_slice = {
+                    futures = {
                         executor.submit(upload_slice, i): i
                         for i in range(total_sliceNo)
                     }
-                    for future in as_completed(future_to_slice):
-                        slice_id = future_to_slice[future]
-                        if not future.result():
-                            print(f"\n分片 {slice_id} 上传失败,终止上传.")
+                    for future in as_completed(futures):
+                        success, slice_id = future.result()
+                        if not success:
+                            print(f"❌ 分片 {slice_id} 上传失败，终止上传。")
                             return -1
-                        avg = sum(task_upload_per) / total_sliceNo
-                        print(f"\r进度: {avg:.1f}%(共{total_sliceNo}分片)", end="")
-
-            print("\n分片上传完成,开始合并分片...")
+                        pbar.update(1)
+            print("✅ 分片上传完成,开始合并分片...")
             complete_response = uploader.upload_complete(preuploadID)
             if complete_response.data is not None and complete_response.data.get(
                 "completed"
@@ -521,9 +534,10 @@ class Pan123openAPI:
             last_file_id = None
             while True:
                 res = self.file.list_v2(
-                    parentFileId=current_id, lastFileId=last_file_id
+                    parentFileId=current_id, lastFileId=last_file_id, limit=100
                 )
                 if not res.data or not res.data.get("fileList"):
+                    print(f"❌ 在 {current_id} 下没有找到任何文件")
                     break
 
                 for item in res.data["fileList"]:
@@ -576,7 +590,9 @@ class Pan123openAPI:
         lastFileId = None
 
         while True:
-            res = self.file.list_v2(parentFileId=parentFileId, lastFileId=lastFileId)
+            res = self.file.list_v2(
+                parentFileId=parentFileId, lastFileId=lastFileId, limit=100
+            )
 
             if not res.data or not res.data.get("fileList"):
                 break
@@ -616,12 +632,14 @@ class Pan123openAPI:
         return file_list
 
     @validate_call
-    def list_files(self, dirnames: DirnamesType) -> list[dict] | None:
+    def list_files(
+        self, dirnames: Sequence[Union[str, int, Path, PurePosixPath]]
+    ) -> list[dict] | None:
         """
         给定一个绝对目录路径,列出其下所有文件(含子目录)以及查询目录本身的文件信息.
 
         Args:
-            dirnames (DirnamesType): 云盘中的绝对路径目录列表,必须以 '/' 开头或为整数 fileId.
+            dirnames (Sequence[Union[str, int, Path, PurePosixPath]]): 云盘中的绝对路径目录列表,必须以 '/' 开头或为整数 fileId.
 
         Returns:
             所有目录下的文件信息列表(包含 full_path 和 relative_path 字段).  如果没有找到目录,则返回 None.
@@ -720,14 +738,14 @@ class Pan123openAPI:
     @validate_call
     def download_dir(
         self,
-        dirnames: DirnamesType,
+        dirnames: Sequence[Union[str, int, Path, PurePosixPath]],
         output_path: str | Path = ".",
     ) -> None:
         """
         下载指定目录下的所有文件(含子目录).
 
         Args:
-            dirname (DirnamesType): 云盘中的绝对路径目录列表,必须以 '/' 开头或为整数 fileId 的列表.
+            dirnames (Sequence[Union[str, int, Path, PurePosixPath]]): 云盘中的绝对路径目录列表,必须以 '/' 开头或为整数 fileId 的列表.
             output_path (str | Path): 下载保存的目录,默认当前目录.
 
         Returns:
@@ -800,14 +818,13 @@ class Pan123openAPI:
 
     @validate_call
     def delete_dir(
-        self,
-        dirnames: DirnamesType,
+        self, dirnames: Sequence[Union[str, int, Path, PurePosixPath]]
     ) -> None:
         """
         删除指定目录及其下的所有文件(含子目录).
 
         Args:
-            dirnames (DirnamesType): 云盘中的绝对路径目录列表,必须以 '/' 开头或为整数 fileId.
+            dirnames (Sequence[Union[str, int, Path, PurePosixPath]]): 云盘中的绝对路径目录列表,必须以 '/' 开头或为整数 fileId.
 
         Returns:
             None

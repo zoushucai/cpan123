@@ -1,6 +1,6 @@
 [project]
 name = "cpan123"
-version = "0.1.2"
+version = "0.1.7"
 description = "123云盘的python接口文档(非官方)"
 readme = "README.md"
 authors = [
@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
+    "click>=8.2.0",
     "json5>=0.10.0",
     "jsonpath>=0.6.0",
     "jsonschema>=4.23.0",
@@ -16,10 +17,11 @@ dependencies = [
     "python-dotenv>=1.1.0",
     "requests>=2.10.0",
     "tenacity>=8.0.0",
+    "tqdm>=4.67.1",
 ]
 
 [project.scripts]
-cpan123 = "cpan123:main"
+cpan123 = "cpan123.cli:cli"
 
 [build-system]
 requires = ["hatchling"]
