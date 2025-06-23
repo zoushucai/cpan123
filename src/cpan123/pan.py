@@ -373,6 +373,7 @@ class Pan123openAPI:
                 size = min(sliceSize, file_size - start)
                 with open(filename, "rb") as f_slice:
                     f_slice.seek(start)
+                    t0 = time.time()
                     success = self._upload_file_data_common(
                         uploader.get_upload_url,
                         f_slice,
@@ -382,14 +383,19 @@ class Pan123openAPI:
                         sliceNo,
                         task_upload_per,
                     )
-                return success, sliceNo
+                    t1 = time.time()
+                duration = t1 - t0
+                return success, sliceNo, size, duration
 
             cpu_count = os.cpu_count() or 1
             max_workers = min(max(1, cpu_count - 1), total_sliceNo)
             m1 = sliceSize // 1024 // 1024
             w1 = max_workers
             t1 = total_sliceNo
-            print(f"✅ 用 {w1} 个线程上传 {t1} 个分片, 每个分片大小为 {m1} MB")
+            t2 = file_size // 1024 // 1024
+            print(f"✅ {w1} 线程上传 {t1} 分片, 单分片<= {m1} MB,共 {t2:.2f} MB")
+            uploaded_bytes = 0
+            total_time = 0
             with tqdm(total=t1, desc="上传进度", unit="slice") as pbar:
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = {
@@ -397,12 +403,21 @@ class Pan123openAPI:
                         for i in range(total_sliceNo)
                     }
                     for future in as_completed(futures):
-                        success, slice_id = future.result()
+                        success, slice_id, size, duration = future.result()
                         if not success:
                             print(f"❌ 分片 {slice_id} 上传失败，终止上传。")
                             return -1
+                        uploaded_bytes += size
+                        total_time += duration
+                        speed = uploaded_bytes / total_time if total_time > 0 else 0
+                        speed_str = (
+                            f"{speed / 1024 / 1024:.2f} MB/s"
+                            if speed > 1024 * 1024
+                            else f"{speed / 1024:.2f} KB/s"
+                        )
+                        pbar.set_postfix_str(f"速度: {speed_str}")
                         pbar.update(1)
-            print("✅ 分片上传完成,开始合并分片...")
+            print("✅ 分片上传完成, 开始合并分片...")
             complete_response = uploader.upload_complete(preuploadID)
             if complete_response.data is not None and complete_response.data.get(
                 "completed"
