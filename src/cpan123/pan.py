@@ -102,6 +102,7 @@ class Pan123openAPI:
         self.user = User(auth=self.auth)
         self.directlink = DirectLink(auth=self.auth)
         self.oss = Oss(auth=self.auth)
+        self._remote_path_cache = {}
 
     def _validate_and_prepare_paths(
         self,
@@ -396,28 +397,39 @@ class Pan123openAPI:
             print(f"✅ {w1} 线程上传 {t1} 分片, 单分片<= {m1} MB,共 {t2:.2f} MB")
             uploaded_bytes = 0
             total_time = 0
-            with tqdm(total=t1, desc="上传进度", unit="slice") as pbar:
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = {
-                        executor.submit(upload_slice, i): i
-                        for i in range(total_sliceNo)
-                    }
-                    for future in as_completed(futures):
-                        success, slice_id, size, duration = future.result()
-                        if not success:
-                            print(f"❌ 分片 {slice_id} 上传失败，终止上传。")
-                            return -1
-                        uploaded_bytes += size
-                        total_time += duration
-                        speed = uploaded_bytes / total_time if total_time > 0 else 0
-                        speed_str = (
-                            f"{speed / 1024 / 1024:.2f} MB/s"
-                            if speed > 1024 * 1024
-                            else f"{speed / 1024:.2f} KB/s"
-                        )
-                        pbar.set_postfix_str(f"速度: {speed_str}")
-                        pbar.update(1)
-            print("✅ 分片上传完成, 开始合并分片...")
+            if w1 <= 1:
+                # 不应该使用多线程,直接上传
+                for i in range(total_sliceNo):
+                    success, slice_id, size, duration = upload_slice(i)
+                    if not success:
+                        print(f"❌ 分片 {slice_id} 上传失败，终止上传。")
+                        return -1
+                    uploaded_bytes += size
+                    total_time += duration
+                    speed = uploaded_bytes / total_time if total_time > 0 else 0
+            else:
+                with tqdm(total=t1, desc="上传进度", unit="slice") as pbar:
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        futures = {
+                            executor.submit(upload_slice, i): i
+                            for i in range(total_sliceNo)
+                        }
+                        for future in as_completed(futures):
+                            success, slice_id, size, duration = future.result()
+                            if not success:
+                                print(f"❌ 分片 {slice_id} 上传失败，终止上传。")
+                                return -1
+                            uploaded_bytes += size
+                            total_time += duration
+                            speed = uploaded_bytes / total_time if total_time > 0 else 0
+                            speed_str = (
+                                f"{speed / 1024 / 1024:.2f} MB/s"
+                                if speed > 1024 * 1024
+                                else f"{speed / 1024:.2f} KB/s"
+                            )
+                            pbar.set_postfix_str(f"速度: {speed_str}")
+                            pbar.update(1)
+                print("✅ 分片上传完成, 开始合并分片...")
             complete_response = uploader.upload_complete(preuploadID)
             if complete_response.data is not None and complete_response.data.get(
                 "completed"
@@ -753,83 +765,114 @@ class Pan123openAPI:
     @validate_call
     def download_dir(
         self,
-        dirnames: Sequence[Union[str, int, Path, PurePosixPath]],
-        output_path: str | Path = ".",
+        dirnames: Sequence[Union[str, int, Path, PurePosixPath]]
+        | Union[str, int, Path, PurePosixPath],
+        output_path: Optional[Union[str, Path]] = None,
     ) -> None:
         """
         下载指定目录下的所有文件(含子目录).
 
         Args:
-            dirnames (Sequence[Union[str, int, Path, PurePosixPath]]): 云盘中的绝对路径目录列表,必须以 '/' 开头或为整数 fileId 的列表.
-            output_path (str | Path): 下载保存的目录,默认当前目录.
+            dirnames: 云盘中的绝对路径目录列表或单个路径，必须以 '/' 开头或为整数 fileId。
+            output_path: 下载保存的目录。如果未指定，则使用云端目录名作为输出目录。
 
         Returns:
             None
         """
-        all_files = self.list_files(dirnames)
-        if all_files is None:
-            print("❌ 没有找到该目录")
-            return
+        # 转换为列表
+        if isinstance(dirnames, (str, int, Path, PurePosixPath)):
+            dirnames = [dirnames]
 
-        # 获取下载链接,下载文件
-        Path(output_path).mkdir(parents=True, exist_ok=True)
-        print(f" 开始下载到 {output_path}...")
-        for file in all_files:
-            # 过滤掉查询目录本身
-            if str(dirnames) in [str(file["fileId"]), file["filename"]]:
+        # 循环处理每一个云端目录
+        for dirname in dirnames:
+            # 获取文件列表（包含子文件）
+            all_files = self.list_files([dirname])
+            if not all_files:
+                print(f"❌ 没有找到该目录: {dirname}")
                 continue
-            self._download_single_file(file, output_path)
+
+            # 自动决定输出目录
+            if output_path is None or str(output_path) == ".":
+                if isinstance(dirname, int):
+                    local_out = Path(str(dirname))
+                else:
+                    local_out = Path(str(dirname)).name  # 取最后一级路径名
+            else:
+                local_out = Path(output_path)
+
+            local_out = Path(local_out)
+            local_out.mkdir(parents=True, exist_ok=True)
+
+            for file in all_files:
+                # 下载所有子文件（不要误跳过）
+                self._download_single_file(file, local_out)
 
     @validate_call
-    def upload_dir(
-        self,
-        dirname: Union[str, Path],
-        parentFileID: int = 0,
-        upload_dirname: str | None = None,
-    ) -> None:
+    def _ensure_remote_path(self, path: Path, root_id: int) -> int:
         """
-        上传目录到云端.
+        确保 path 路径在云端存在，并返回对应目录 ID。
+        - path: 相对于某个根的路径，如 Path("a/b/c")
+        - root_id: 起始目录 ID(通常是 0)
+        """
+        if not path or str(path) in (".", ""):
+            return root_id
+
+        if path in self._remote_path_cache:
+            return self._remote_path_cache[path]
+
+        current_id = root_id
+        current_path = Path()
+
+        for part in path.parts:
+            current_path = current_path / part
+
+            if current_path in self._remote_path_cache:
+                current_id = self._remote_path_cache[current_path]
+                continue
+
+            # 调用 API 创建目录
+            res = self.file.mkdir(part, current_id)
+            if not res or res.data is None or res.code != 0:
+                raise RuntimeError(
+                    f"❌ 创建目录失败: {part} (父ID: {current_id}) - 返回: {res.message}"
+                )
+
+            current_id = res.data["dirID"]
+            self._remote_path_cache[current_path] = current_id
+
+        return current_id
+
+    @validate_call
+    def upload_dir(self, local_dir: Path | str, root_id: int = 0):
+        """
+        上传本地目录（递归子目录）到云端指定父目录 ID
 
         Args:
-            dirname (Union[str, Path]): 本地目录路径.
-            parentFileID (int): 云端目标父目录的 ID,默认为根目录为 0
-            upload_dirname (Optional[str]): 云端新建目录的名称. 如果为 None,则使用 parentFileID 指定的目录.
-
-        Returns:
-            None
+            local_dir (Path | str): 本地目录路径,必须是绝对路径.
+            root_id (int): 云端目标父目录的 ID, 默认为根目录为 0.
         """
-        local_dir = Path(dirname)
-        if not local_dir.exists() or not local_dir.is_dir():
-            raise ValueError(f"指定的目录不存在或不是目录: {local_dir}")
-        # 不能是.开头的文件
-        # if Path(dirname).name.startswith("."):
-        #     print(f"❌ 目录 {dirname} 不能以 '.' 开头")
-        #     return
+        self._remote_path_cache = {}  # 清空缓存
+        local_dir = Path(local_dir) if isinstance(local_dir, str) else local_dir
+        local_dir = local_dir.resolve()  # 确保是绝对路径
 
-        # 创建云端目录(如果指定了 upload_dirname)
-        target_dir_id = parentFileID
-        if upload_dirname:
-            res = self.file.mkdir(name=upload_dirname, parentID=parentFileID, skip=True)
-            if not res or res.data is None or res.code == 1:
-                print(f"❌ 创建目录失败: {upload_dirname}")
-                return
-            target_dir_id = res.data["dirID"]
+        # 先创建顶层目录
+        top_path = Path(local_dir.name)
+        top_level_id = self._ensure_remote_path(top_path, root_id)
 
-        # 遍历本地目录并上传文件
-        files = [f for f in local_dir.rglob("*") if f.is_file()]
-        print(f"正在上传 {len(files)} 个文件...")
-        for file_path in files:
-            try:
-                print(f"正在上传: {file_path}")
-                res = self.upload(
-                    str(file_path), str(file_path), target_dir_id, False, 1, True
-                )
-                if res == -1:
-                    print(f"❌ 上传失败: {file_path}")
-                else:
-                    print(f"✅ 上传成功: {file_path} -> {res}")
-            except Exception as e:
-                print(f"❌ 上传过程中出现异常: {file_path},错误信息: {e}")
+        # 将 "." 映射为顶级目录
+        self._remote_path_cache[Path(".")] = top_level_id
+
+        for file_path in local_dir.rglob("*"):
+            if file_path.is_file():
+                relative_path = file_path.relative_to(local_dir)
+                parent_dir = relative_path.parent  # 可能是 "."
+
+                # 创建父目录路径（在顶层目录下递归创建）
+                remote_parent_id = self._ensure_remote_path(parent_dir, top_level_id)
+                # 上传
+                self.upload(file_path, file_path.name, remote_parent_id)
+        # 清空缓存
+        self._remote_path_cache = {}
 
     @validate_call
     def delete_dir(
