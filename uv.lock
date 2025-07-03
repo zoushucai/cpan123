@@ -169,7 +169,6 @@ wheels = [
 
 [[package]]
 name = "cpan123"
-version = "0.1.8"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
