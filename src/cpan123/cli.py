@@ -57,16 +57,19 @@ def upload(
 
 
 @cli.command()
-@click.argument("localdir", type=click.Path(exists=True), metavar="<目录路径>")
+@click.argument(
+    "localdirs", type=click.Path(exists=True), nargs=-1, metavar="<目录路径...>"
+)
 @click.option("-r", "--root", type=int, default=0, help="云端目标根目录 ID")
-def upload_dir(localdir: str | Path, root: int = 0):
-    """上传当前目录下的所有文件到云盘"""
+def upload_dir(localdirs: tuple[str | Path], root: int = 0):
+    """上传一个或多个目录到云盘"""
     pan = Pan123openAPI()
     try:
-        localdir = Path(localdir).resolve()
-        # 如果 name 不存在,则为 None
-        pan.upload_dir(local_dir=localdir, root_id=root)
-        click.secho("✅ 目录上传完成", fg="green")
+        for localdir in localdirs:
+            path = Path(localdir).resolve()
+            click.secho(f"📁 开始上传: {path}", fg="cyan")
+            pan.upload_dir(local_dir=path, root_id=root)
+        click.secho("✅ 所有目录上传完成", fg="green")
     except Exception as e:
         click.secho(f"❌ 目录上传失败: {e}", fg="red", err=True)
 
