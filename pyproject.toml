@@ -1,6 +1,6 @@
 [project]
 name = "cpan123"
-dynamic = ["version"]  
+version = "0.1.11"  # 设定为固定版本
 description = "123云盘的python接口文档(非官方)"
 readme = "README.md"
 authors = [
@@ -24,10 +24,9 @@ dependencies = [
 cpan123 = "cpan123.cli:cli"
 
 [build-system]
-requires = ["hatchling", "uv-dynamic-versioning"]
+requires = ["hatchling"]
 build-backend = "hatchling.build"
-[tool.hatch.version]
-source = "uv-dynamic-versioning"
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
