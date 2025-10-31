@@ -159,8 +159,6 @@ class Auth:
             if not (self.clientID and self.clientSecret):
                 print("❌ No clientID/clientSecret found, and no access_token, exiting")
                 sys.exit(1)
-            # 有 clientID 和 clientSecret,但没有 token → 尝试刷新
-            self.refresh_access_token()
         else:
             if not (self.clientID and self.clientSecret):
                 print("⚠️ access_token 存在,但未提供 clientID/clientSecret,跳过刷新")
