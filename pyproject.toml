@@ -1,0 +1,67 @@
+[project]
+name = "cpan123"
+version = "0.2.0"
+description = "123云盘的python接口文档(非官方)"
+readme = "README.md"
+authors = [
+    { name = "zoushucai", email = "zoushucai@users.noreply.github.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.3.0",
+    "dotenv>=0.9.9",
+    "httpx[http2]>=0.28.1",
+    "loguru>=0.7.3",
+    "py3-wget>=1.0.13",
+    "pydantic>=2.12.4",
+    "tenacity>=9.1.2",
+    "tqdm>=4.67.1",
+]
+
+[project.scripts]
+cpan123 = "cpan123.cli:cli"
+
+[build-system]
+requires = ["uv_build>=0.9.7,<0.10.0"]
+build-backend = "uv_build"
+
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+
+
+[tool.ruff.lint]
+extend-select = ["I", "B"]
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "jsonschema>=4.23.0",
+    "mkdocs>=1.6.1",
+    "mkdocs-autorefs>=1.4.1",
+    "mkdocs-get-deps>=0.2.0",
+    "mkdocs-material>=9.6.14",
+    "mkdocs-material-extensions>=1.3.1",
+    "mkdocstrings>=0.29.1",
+    "mkdocstrings-python>=1.16.10",
+    "pytest>=8.3.5",
+    "ruff>=0.11.8",
+]
+
+[[tool.uv.index]]
+name = "Tsinghua"
+url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple"
+
+# 加上 PyPI 官方源，确保能拉取全部包版本
+[[tool.uv.index]]
+name = "PyPI"
+url = "https://pypi.org/simple"
+
+[project.urls]
+Homepage = "https://github.com/zoushucai/cpan123"
+Documentation = "https://cpan123.readthedocs.org"
+Repository = "https://github.com/zoushucai/cpan123.git"
+Issues = "https://github.com/zoushucai/cpan123/issues"
+Changelog = "https://github.com/zoushucai/cpan123/blob/main/CHANGELOG.md"
