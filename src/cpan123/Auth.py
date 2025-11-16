@@ -71,4 +71,4 @@ class Auth(Jwt):
             log.error(f"解析响应 JSON 失败: {e}")
             log.error(f"请求方法: {method}, URL: {url}")
             log.error(f"原始响应: {respjson}")
-            return resp.json()
+            return respjson
