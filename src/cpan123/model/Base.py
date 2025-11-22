@@ -3,8 +3,19 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class UserInfoModel(BaseModel):
+    """统一的用户模型, 过滤掉其他不必要的字段"""
+
+    model_config = ConfigDict(extra="ignore")  # ✅ 忽略所有未定义字段
+
+    username: str
+    userid: str
+    isvip: bool | None = None
+    viptype: int | None = None
+
+
 class AuthError(Exception):
-    """115 平台统一异常"""
+    """123 平台统一异常"""
 
     def __init__(self, code: int, message: str, detail: dict | None = None):
         self.code = code

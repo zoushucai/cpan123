@@ -74,6 +74,9 @@ class Jwt:
 
     def _update_token(self, data: dict):
         """更新本地 token 并写回 .env"""
+        code = int(self._get_key(data, "code") or 0)
+        if code != 0:
+            raise AuthError(int(code), f"获取 token 失败: {data}")
         access_token = self._get_key(data, "accessToken")
         expiredAt = self._get_key(data, "expiredAt")
 

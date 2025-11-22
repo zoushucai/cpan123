@@ -37,3 +37,13 @@ aa.pdf
 test.py
 cpan123-0.1.12.tar.gz
 downloads
+test3.py
+test2.py
+output*/
+test4.py
+test4.log
+*.csv
+test*.py
+test*.json
+logs/
+接口.md

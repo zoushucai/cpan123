@@ -5,12 +5,14 @@ from typing import Literal, Optional
 from pydantic import Field, validate_call
 
 from .Auth import Auth
+from .model.Base import UserInfoModel
 from .utils import API
 
 
 class Share:
-    def __init__(self, auth: Auth) -> None:
+    def __init__(self, auth: Auth, userinfo: UserInfoModel | None = None) -> None:
         self.auth = auth
+        self.userinfo = userinfo
 
     @validate_call
     def share_create(

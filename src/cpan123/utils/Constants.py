@@ -57,7 +57,7 @@ class API:
         """文件相关接口 V1 版本(不含上传有关的接口, 因为上传接口在File2Path中)"""
 
         # POST   域名 + /upload/v1/file/mkdir
-        MKDIR = API_BASE + "/api/v1/file/mkdir"
+        MKDIR = API_BASE + "/upload/v1/file/mkdir"
         # PUT 域名 + /api/v1/file/name
         NAME = API_BASE + "/api/v1/file/name"
 

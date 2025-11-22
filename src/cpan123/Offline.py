@@ -3,11 +3,12 @@ from typing import Optional
 from pydantic import validate_call
 
 from .Auth import Auth
+from .model.Base import UserInfoModel
 from .utils import API
 
 
 class Offline:
-    def __init__(self, auth: Auth) -> None:
+    def __init__(self, auth: Auth, userinfo: UserInfoModel | None = None) -> None:
         """初始化
 
         Args:
@@ -15,6 +16,7 @@ class Offline:
 
         """
         self.auth = auth
+        self.userinfo = userinfo
 
     @validate_call
     def download(

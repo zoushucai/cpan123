@@ -5,8 +5,10 @@ from py3_wget.main import download_file
 from pydantic import BaseModel, validate_call
 from tqdm import tqdm
 
+from .Auth import Auth
 from .File import File
 from .File2 import File2
+from .model.Base import UserInfoModel
 
 
 class FileItem(BaseModel):
@@ -27,10 +29,11 @@ class Downloader:
 
     """
 
-    def __init__(self, auth):
+    def __init__(self, auth: Auth, userinfo: UserInfoModel | None = None) -> None:
         self.auth = auth
-        self.file = File(auth)
-        self.file2 = File2(auth)
+        self.userinfo = userinfo
+        self.file = File(auth, userinfo)
+        self.file2 = File2(auth, userinfo)
 
     @validate_call
     def download_file(

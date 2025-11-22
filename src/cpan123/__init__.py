@@ -1,6 +1,8 @@
 from .Auth import Auth
 from .Downloader import Downloader
+from .File import File
 from .File2 import File2
+from .FileList import FileList
 from .Uploader import Uploader
 from .User import User
 from .utils.Constants import API
@@ -17,7 +19,14 @@ class Pan123OpenAPI:
         self.API = API
         self.log = log
         self.auth = Auth(envpath=envpath, verbose=verbose)
+
         self.user = User(self.auth)
-        self.file2 = File2(self.auth)
-        self.uploader = Uploader(self.auth)
-        self.downloader = Downloader(self.auth)
+
+        self.userinfo = self.user.userinfo
+        assert self.userinfo is not None, "用户未授权,请先完成授权流程"
+        self.file = File(self.auth, self.userinfo)
+        self.file2 = File2(self.auth, self.userinfo)
+        self.uploader = Uploader(self.auth, self.userinfo)
+        self.downloader = Downloader(self.auth, self.userinfo)
+        log.info(f"已登录用户: {self.userinfo.username} (ID: {self.userinfo.userid}, ISVIP: {self.userinfo.isvip})")
+        self.filelist = FileList(self.auth, self.userinfo)

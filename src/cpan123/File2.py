@@ -3,19 +3,21 @@ from typing import Union
 from pydantic import Field, validate_call
 
 from .Auth import Auth
+from .model.Base import UserInfoModel
 from .utils import API
 
 
 class File2:
     """123 文件上传 V2 接口封装类"""
 
-    def __init__(self, auth: Auth) -> None:
+    def __init__(self, auth: Auth, userinfo: UserInfoModel | None = None) -> None:
         """初始化
 
         Args:
             auth (Auth): 已授权的 Auth 实例
         """
         self.auth = auth
+        self.userinfo = userinfo
 
     @validate_call
     def create(

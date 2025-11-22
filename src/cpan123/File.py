@@ -8,19 +8,21 @@ from typing import Optional
 from pydantic import Field, validate_call
 
 from .Auth import Auth
+from .model.Base import UserInfoModel
 from .utils import API, log
 
 
 class File:
     """123 文件上传 V1 接口封装类"""
 
-    def __init__(self, auth: Auth) -> None:
+    def __init__(self, auth: Auth, userinfo: UserInfoModel | None = None) -> None:
         """初始化 File 客户端
 
         Args:
             auth (Auth): 已授权的 Auth 实例
         """
         self.auth = auth
+        self.userinfo = userinfo
 
     @validate_call
     def mkdir(self, name: str, parentID: int) -> dict:
@@ -103,7 +105,7 @@ class File:
 
         """
         if len(fileIDs) > 100:
-            print("fileIDs 参数长度最大不超过 100,请修改后重试")
+            log.error("fileIDs 参数长度最大不超过 100,请修改后重试")
             sys.exit(1)
         return self.auth.request_json("POST", API.FilePath.DELETE, json={"fileIDs": fileIDs})
 
@@ -200,7 +202,7 @@ class File:
         # print(self.list_v2.__name__)
         # print(self.list_v2.__doc__)
         if limit > 100 and limit < 0:
-            print("limit 参数最大值为 100,请修改后重试")
+            log.error("limit 参数最大值为 100,请修改后重试")
             sys.exit(1)
         params = {
             "parentFileId": parentFileId,
@@ -237,7 +239,7 @@ class File:
 
         """
         if limit > 100 and limit < 0:
-            print("limit 参数最大值为 100,请修改后重试")
+            log.error("limit 参数最大值为 100,请修改后重试")
             sys.exit(1)
         params = {
             "parentFileId": parentFileId,

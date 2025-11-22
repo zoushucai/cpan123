@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from .Auth import Auth
 from .File2 import File2
+from .model.Base import UserInfoModel
 from .utils.md5 import calculate_md5
 
 
@@ -23,14 +24,16 @@ class Uploader:
     - 分片上传 slice 使用 create 返回的 servers 任意其一
     """
 
-    def __init__(self, auth: Auth) -> None:
+    def __init__(self, auth: Auth, userinfo: UserInfoModel | None = None) -> None:
         """初始化
 
         Args:
             auth (Auth): 已授权的 Auth 实例
+            userinfo (UserInfoModel | None): 用户信息模型，默认为 None
         """
         self.auth = auth
-        self.file2 = File2(auth)
+        self.userinfo = userinfo
+        self.file2 = File2(auth, userinfo=userinfo)
 
     # ---------------------- 单文件：分片上传 ----------------------
     def upload_file_chunked(
