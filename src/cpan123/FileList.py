@@ -486,6 +486,7 @@ class FileList:
                     time.sleep(delay)
                     continue
                 return False
-            except Exception:
+            except Exception as e:
+                log.error(f"秒传文件失败: {item_data}, 错误: {e}")
                 return False
         return False
