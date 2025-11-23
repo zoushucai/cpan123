@@ -442,6 +442,9 @@ class FileList:
             results = [self._upload_one(item, current_path, duplicate) for item in data["list"]]
         elif "data" in data and isinstance(data["data"], list):
             results = [self._upload_one(item, current_path, duplicate) for item in data["data"]]
+        elif "files" in data and isinstance(data["files"], list):
+            # 添加别人的123秒传格式
+            results = [self._upload_one(item, current_path, duplicate) for item in data["files"]]
         else:
             raise ValueError("data 格式不正确，需包含 etag/size/path 或 list/data 字段")
 
