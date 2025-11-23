@@ -3,6 +3,32 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class Share123FileModel(BaseModel):
+    model_config = ConfigDict(extra="ignore")  # ✅ 忽略所有未定义字段
+    etag: str
+    size: str
+    path: str
+
+
+# class FileListResponseModel(BaseModel):
+#     model_config = ConfigDict(extra="allow")  # ✅ 保留所有未定义字段
+#     errno: int | None = Field(default=None, exclude=True)
+#     request_id: str | None = Field(default=None, exclude=True)
+#     list: list[Dict[str, Any]]
+
+#     # 且list中必须 有 isdir 字段
+#     @model_validator(mode="after")
+#     def check_state(self) -> "FileListResponseModel":
+#         """验证 list 的每个项是否包含 isdir 字段，失败时抛出 AuthError
+#         如果为空, 也通过验证
+#         """
+#         for item in self.list:
+#             if "isdir" not in item:
+#                 raise ValueError("list 中的项缺少 isdir 字段")
+#             # 比如
+#         return self
+
+
 class UserInfoModel(BaseModel):
     """统一的用户模型, 过滤掉其他不必要的字段"""
 
