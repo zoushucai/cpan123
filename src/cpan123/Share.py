@@ -21,9 +21,9 @@ class Share:
         shareExpire: Literal[0, 1, 7, 30],
         fileIDList: str,
         sharePwd: Optional[str] = None,
-        trafficSwitch: Literal[1, 2, 3, 4] = 1,
-        trafficLimitSwitch: Literal[1, 2] = 1,
-        trafficLimit: int = 10000**2,
+        trafficSwitch: Literal[1, 2, 3, 4] | None = 1,
+        trafficLimitSwitch: Literal[1, 2] | None = 1,
+        trafficLimit: int | None = 1 * (1024**3),
     ) -> dict:
         """
         创建免费分享链接
@@ -119,18 +119,24 @@ class Share:
         shareName: str = Field(max_length=35),
         fileIDList: str = Field(max_length=10000),
         payAmount: int = Field(gt=0, le=99),
-        resourceDesc: str = Field(max_length=100, default=""),
         isReward: int = Field(default=0, ge=0, le=10),
+        resourceDesc: str = Field(max_length=100, default=""),
+        trafficSwitch: int | None = None,
+        trafficLimitSwitch: int | None = None,
+        trafficLimit: int | None = None,
     ) -> dict:
         """
         创建付费分享链接
 
         Args:
-            shareName (str): 分享链接名称,链接名要小于35个字符且不能包含特殊字符
-            fileIDList (str): 分享文件ID列表,以逗号分割,最大只支持拼接100个文件ID,示例:1,2,3
-            payAmount (int): 请输入整数|最小金额1元|最大金额99元
-            isReward (int): 是否打赏, 0 否, 1 是, 默认 0
-            resourceDesc (str): 资源描述
+            shareName: 分享链接名称,链接名要小于35个字符且不能包含特殊字符
+            fileIDList: 分享文件ID列表,以逗号分割,最大只支持拼接100个文件ID,示例:1,2,3
+            payAmount: 请输入整数|最小金额1元|最大金额99元
+            isReward 是否打赏, 0 否, 1 是, 默认 0
+            resourceDesc: 资源描述
+            trafficSwitch : 分享提取流量包, 1 全部关闭, 2 打开游客免登录提取, 3 打开超流量用户提取, 4 全部开启
+            trafficLimitSwitch: 分享提取流量包流量限制开关, 1 关闭限制, 2 打开限制
+            trafficLimit: 分享提取流量包限制流量, 单位：字节, 分享提取流量包限制流量
 
         Returns:
             创建付费分享链接的响应数据
@@ -142,6 +148,9 @@ class Share:
             "payAmount": payAmount,
             "isReward": isReward,
             "resourceDesc": resourceDesc,
+            "trafficSwitch": trafficSwitch,
+            "trafficLimitSwitch": trafficLimitSwitch,
+            "trafficLimit": trafficLimit,
         }
         return self.auth.request_json("POST", API.SharePath.CONTENT_PAYMENT_CREATE, json=data)
 
