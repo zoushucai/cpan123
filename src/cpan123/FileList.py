@@ -1,5 +1,6 @@
 import json
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, Dict
 
@@ -33,7 +34,7 @@ class FileList:
             raise ValueError("safe_list_v1 调用失败") from e
 
     @sleep_and_retry
-    @limits(calls=1, period=1)
+    @limits(calls=15, period=1)
     def _safe_list_v2(self, **kwargs) -> dict:
         """安全调用 list_v2 方法，遵守速率限制"""
         try:
@@ -186,6 +187,11 @@ class FileList:
                     searchMode=search_mode,
                     lastFileId=last_file_id,
                 )
+                # 如果是 429 代表被限流，等待后重试
+                if resjson and resjson.get("code") == 429:
+                    time.sleep(0.9 + tries * 2)
+                    tries += 1
+                    continue
 
                 if not resjson or resjson.get("code") != 0 or "data" not in resjson or not isinstance(resjson["data"], dict):
                     tries += 1
@@ -325,7 +331,15 @@ class FileList:
             # 可以选择记录错误但继续处理其他目录
 
     @validate_call
-    def recursive_list_v2(self, parent_id: int, save_dir: str = "./output", current_path: str = "", verbose: bool = False, depth: int = 0) -> None:
+    def recursive_list_v2(
+        self,
+        parent_id: int,
+        save_dir: str = "./output",
+        current_path: str = "",
+        verbose: bool = False,
+        depth: int = 0,
+        max_workers: int = 5,
+    ) -> None:
         """
         递归遍历目录并保存每一级目录的文件列表为 JSON，
         并给每一个文件/目录添加 fullpath 字段。
@@ -336,6 +350,7 @@ class FileList:
             current_path: 当前目录的路径（用于递归）
             verbose: 是否打印详细信息
             depth: 递归深度（内部使用）
+            max_workers: 并发 worker 数量，<=1 时退化为串行
         Returns:
             None
         """
@@ -344,69 +359,104 @@ class FileList:
             log.error(f"递归深度超过限制: {depth}，停止处理目录 {parent_id}")
             return
 
+        worker_count = max(1, max_workers)
+
         try:
-            # 确保保存目录存在
             Path(save_dir).mkdir(parents=True, exist_ok=True)
 
-            # 1) 获取当前目录内容
-            file_data = self.get_file_list_v2(parent_id)
+            def process_directory(dir_id: int, path: str, current_depth: int) -> list[tuple[int, str, int]]:
+                if current_depth > 1000:
+                    log.error(f"递归深度超过限制: {current_depth}，停止处理目录 {dir_id}")
+                    return []
 
-            # 检查获取结果
-            if file_data.get("code") != 0:
-                log.error(f"获取目录 {parent_id} 内容失败: {file_data.get('message')}")
+                try:
+                    file_data = self.get_file_list_v2(dir_id)
+
+                    if file_data.get("code") != 0:
+                        log.error(f"获取目录 {dir_id} 内容失败: {file_data.get('message')}")
+                        return []
+
+                    items = file_data["data"]["fileList"]
+
+                    for item in items:
+                        try:
+                            filename = item.get("filename", "")
+                            if not filename:
+                                log.warning(f"目录 {dir_id} 中存在无文件名的项: {item}")
+                                continue
+
+                            if path:
+                                item["fullpath"] = f"{path}/{filename}"
+                            else:
+                                item["fullpath"] = f"/{filename}"
+                        except Exception as exc:
+                            log.error(f"处理文件项失败: {item}, 错误: {exc}")
+                            continue
+
+                    timestamp = self._timestamp_ms()
+                    safe_path = path.replace("/", "_").replace("\\", "_") or "root"
+                    if len(safe_path) > 80:
+                        safe_path = safe_path[:80]
+                    json_filename = f"{timestamp}_{dir_id}_{safe_path}.json"
+                    json_path = Path(save_dir) / json_filename
+
+                    if self._save_json_safely(file_data, json_path):
+                        if verbose:
+                            log.info(f"路径: {path or '/'} => {json_path.name}, 共 {len(items)} 项")
+                    else:
+                        log.error(f"保存目录 {dir_id} 的JSON文件失败")
+
+                    dir_items = [item for item in items if item.get("type") == 1]
+                    children: list[tuple[int, str, int]] = []
+                    for item in dir_items:
+                        try:
+                            sub_id = item.get("fileId")
+                            sub_path = item.get("fullpath")
+
+                            if not sub_id:
+                                log.warning(f"子目录项缺少 fileId: {item}")
+                                continue
+
+                            children.append((sub_id, sub_path, current_depth + 1))
+                        except Exception as exc:
+                            log.error(f"递归处理子目录失败: {item}, 错误: {exc}")
+                            continue
+
+                    return children
+
+                except KeyboardInterrupt:
+                    raise
+                except Exception as exc:
+                    log.error(f"处理目录 {dir_id} 时发生未预期异常: {exc}")
+                    return []
+
+            if worker_count == 1:
+                stack = [(parent_id, current_path, depth)]
+                while stack:
+                    dir_id, path, current_depth = stack.pop()
+                    stack.extend(process_directory(dir_id, path, current_depth))
                 return
 
-            items = file_data["data"]["fileList"]
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                future_map: dict[Any, tuple[int, str, int]] = {}
+                first_future = executor.submit(process_directory, parent_id, current_path, depth)
+                future_map[first_future] = (parent_id, current_path, depth)
 
-            # 2) 给每一个 item 添加 fullpath
-            for item in items:
-                try:
-                    filename = item.get("filename", "")
-                    if not filename:
-                        log.warning(f"目录 {parent_id} 中存在无文件名的项: {item}")
-                        continue
+                while future_map:
+                    done, _ = wait(set(future_map.keys()), return_when=FIRST_COMPLETED)
+                    for fut in done:
+                        task_meta = future_map.pop(fut)
+                        try:
+                            child_tasks = fut.result()
+                        except KeyboardInterrupt:
+                            raise
+                        except Exception as exc:
+                            log.error(f"目录 {task_meta[0]} 并发任务执行失败: {exc}")
+                            continue
 
-                    if current_path:
-                        item["fullpath"] = f"{current_path}/{filename}"
-                    else:
-                        item["fullpath"] = f"/{filename}"
-                except Exception as e:
-                    log.error(f"处理文件项失败: {item}, 错误: {e}")
-                    continue
-
-            # 3) 保存 JSON 文件
-            timestamp = self._timestamp_ms()
-            # 使用更安全的文件名
-            safe_path = current_path.replace("/", "_").replace("\\", "_") or "root"
-            if len(safe_path) > 80:
-                safe_path = safe_path[:80]  # 限制文件名长度
-            json_filename = f"{timestamp}_{parent_id}_{safe_path}.json"
-            json_path = Path(save_dir) / json_filename
-
-            if self._save_json_safely(file_data, json_path):
-                if verbose:
-                    log.info(f"路径: {current_path or '/'} => {json_path.name}, 共 {len(items)} 项")
-            else:
-                log.error(f"保存目录 {parent_id} 的JSON文件失败")
-                # 不立即返回，继续尝试递归子目录
-
-            # 4) 递归进入子目录
-            dir_items = [item for item in items if item.get("type") == 1]
-
-            for item in dir_items:
-                try:
-                    sub_id = item.get("fileId")
-                    sub_path = item.get("fullpath")
-
-                    if not sub_id:
-                        log.warning(f"子目录项缺少 fileId: {item}")
-                        continue
-
-                    self.recursive_list_v2(sub_id, save_dir, current_path=sub_path, verbose=verbose, depth=depth + 1)
-
-                except Exception as e:
-                    log.error(f"递归处理子目录失败: {item}, 错误: {e}")
-                    continue
+                        for child in child_tasks:
+                            new_future = executor.submit(process_directory, *child)
+                            future_map[new_future] = child
 
         except KeyboardInterrupt:
             log.info("用户中断操作")

@@ -63,6 +63,9 @@ class Auth(Jwt):
             log.error(f"请求方法: {method}, URL: {url}")
             log.error(f"原始响应: {resp.text if 'resp' in locals() else '无响应'}")
             raise ValueError("请求过程中发生错误，请检查日志以获取详细信息。") from e
+        if 429 == respjson.get("code"):
+            # '操作频繁，请稍后再试' (防止打印大量日志)
+            return respjson
 
         try:
             parsed = BaseResponse.model_validate(respjson)
