@@ -25,7 +25,7 @@ class File:
         self.userinfo = userinfo
 
     @validate_call
-    def mkdir(self, name: str, parentID: int) -> dict:
+    def mkdir(self, name: str, parentID: int, verbose: bool = True) -> dict:
         """创建目录
         Args:
             name (str): 目录名称
@@ -35,7 +35,7 @@ class File:
             "name": name,
             "parentID": parentID,
         }
-        return self.auth.request_json("POST", API.FilePath.MKDIR, json=data)
+        return self.auth.request_json("POST", API.FilePath.MKDIR, json=data, verbose=verbose)
 
     @validate_call
     def name(

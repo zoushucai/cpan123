@@ -1,13 +1,14 @@
 import json
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from pathlib import Path
-from typing import Any, Dict
+from pathlib import Path, PurePosixPath
+from typing import Any, Dict, Optional
 
 from pydantic import validate_call
 from ratelimit import limits, sleep_and_retry
 
 from .Auth import Auth
+from .Downloader import Downloader
 from .File import File
 from .File2 import File2
 from .model.Base import Share123FileModel, UserInfoModel
@@ -22,6 +23,7 @@ class FileList:
         self.userinfo = userinfo
         self.file = File(auth, userinfo)
         self.file2 = File2(auth, userinfo)
+        self.downloader = Downloader(auth, userinfo)  # 延迟初始化，避免循环依赖
 
     @sleep_and_retry
     @limits(calls=1, period=1)
@@ -195,7 +197,7 @@ class FileList:
 
                 if not resjson or resjson.get("code") != 0 or "data" not in resjson or not isinstance(resjson["data"], dict):
                     tries += 1
-                    log.warning(f"v2接口响应异常: {resjson}，重试中... (尝试 {tries}/{max_tries})")
+                    # log.warning(f"v2接口响应异常: {resjson}，重试中... (尝试 {tries}/{max_tries})")
                     time.sleep(2 * (tries + 1))
                     continue
 
@@ -203,12 +205,12 @@ class FileList:
                 file_list = data.get("fileList", [])
                 if not isinstance(file_list, list):
                     tries += 1
-                    log.warning(f"v2 fileList 不是列表类型: {type(file_list)}，重试中... (尝试 {tries}/{max_tries})")
+                    # log.warning(f"v2 fileList 不是列表类型: {type(file_list)}，重试中... (尝试 {tries}/{max_tries})")
                     time.sleep(2)
                     continue
 
                 if not file_list and last_file_id is None:
-                    log.warning(f"目录 {parent_id} (v2) 为空目录")
+                    # log.warning(f"目录 {parent_id} (v2) 为空目录")
                     return resjsons
 
                 # 字段兼容处理：fileId -> fileID
@@ -223,17 +225,17 @@ class FileList:
 
                 last_file_id = data.get("lastFileId", -1)
                 if last_file_id == -1:
-                    log.info(f"目录 {parent_id} (v2) 分页获取完成，共 {len(resjsons['data']['fileList'])} 个文件")
+                    # log.info(f"目录 {parent_id} (v2) 分页获取完成，共 {len(resjsons['data']['fileList'])} 个文件")
                     break
 
-            except Exception as e:
+            except Exception:
                 tries += 1
-                log.error(f"v2获取文件列表异常: {e}，重试中... (尝试 {tries}/{max_tries})")
+                # log.error(f"v2获取文件列表异常: {e}，重试中... (尝试 {tries}/{max_tries})")
                 time.sleep(2 * (tries + 1))
                 continue
 
         if tries >= max_tries:
-            log.error(f"目录 {parent_id} (v2) 获取失败，已达到最大重试次数")
+            # log.error(f"目录 {parent_id} (v2) 获取失败，已达到最大重试次数")
             return {"code": -1, "message": "获取失败", "data": {"total": 0, "fileList": []}}
 
         return resjsons
@@ -540,3 +542,131 @@ class FileList:
                 log.error(f"秒传文件失败: {item_data}, 错误: {e}")
                 return False
         return False
+
+    @validate_call
+    def ensure_remote_dir(self, path: str | Path | PurePosixPath, verbose: bool = True) -> int:
+        """根据云端路径递归获取或创建目录，返回最终目录 `fileId`。
+
+        Args:
+            path: 云端目录路径，形如 "a/b/c"，可带或不带首尾 `/`
+            verbose: 是否打印详细信息
+
+        Returns:
+            int: 最终目录的 fileId, 根目录为 0, 若创建失败则抛出异常
+        """
+        if isinstance(path, PurePosixPath):
+            normalized = path
+        elif isinstance(path, Path | str):
+            normalized = PurePosixPath(path)
+        else:
+            raise ValueError("path 参数必须是 str, Path 或 PurePosixPath 类型")
+
+        parts = [p for p in normalized.as_posix().strip("/").split("/") if p]
+        if not parts:
+            return 0
+
+        current_parent = 0
+        for part in parts:
+            found_id: Optional[int] = None
+            found_id = self._get_file_list_v2_by_part(parent_id=current_parent, part=part, is_dir=True)
+            if found_id is None:
+                # 创建目录
+                mk = self.file.mkdir(name=part, parentID=current_parent, verbose=verbose)
+                mk_data = mk.get("data", {}) if isinstance(mk, dict) else {}
+                dir_id = mk_data.get("dirID")
+                if dir_id is None:
+                    raise RuntimeError(f"mkdir failed or returned no dirID: {mk}")
+                current_parent = int(dir_id)
+                if verbose:
+                    log.info(f"目录不存在，已创建: {part} -> ID: {current_parent})")
+            else:
+                if verbose:
+                    log.info(f"目录已存在: {part} -> ID: {found_id})")
+                current_parent = found_id
+
+        return current_parent
+
+    def _find_in_list_by_name(self, file_list: list[dict], name: str, is_dir: bool = False) -> int | None:
+        """在文件列表中按名称查找文件或目录，返回匹配的字典或 None
+
+        type 是否为目录, 1 表示目录，0 表示文件,  trashed 该文件是否在回收站, 1表示在回收站, 0 表示不在回收站
+        """
+        ctype = 1 if is_dir else 0  #
+        for item in file_list:
+            if item.get("filename") == name and int(item.get("trashed", 0)) == 0 and item.get("type") == ctype:
+                fid = item.get("fileId") or item.get("fileID")
+                return int(fid) if fid is not None else None
+
+        return None
+
+    @validate_call
+    def _get_file_list_v2_by_part(
+        self,
+        parent_id: int,
+        part: str,
+        is_dir: bool,
+        max_tries: int = 20,
+    ) -> int | None:
+        """
+        获取指定目录的全部文件（分页，兼容字段，支持搜索/模式）, 并同时返回 fileId 和 fileID, 官方 V1 返回的是 fileID, V2 返回的是 fileId
+
+        Args:
+            parent_id: 目录 ID
+            max_tries: 最大重试次数
+            part: 找到指定的文件名
+            is_dir: 是否是目录
+
+
+
+        """
+        last_file_id = None
+        tries = 0
+
+        while tries < max_tries:
+            try:
+                resjson = self._safe_list_v2(
+                    parentFileId=parent_id,
+                    limit=100,
+                    searchData=None,
+                    searchMode=None,
+                    lastFileId=last_file_id,
+                )
+                # 如果是 429 代表被限流，等待后重试
+                if resjson and resjson.get("code") == 429:
+                    time.sleep(0.9 + tries * 2)
+                    tries += 1
+                    continue
+
+                if not resjson or resjson.get("code") != 0 or "data" not in resjson or not isinstance(resjson["data"], dict):
+                    tries += 1
+                    time.sleep(2 * (tries + 1))
+                    continue
+
+                data = resjson.get("data", {})
+                file_list = data.get("fileList", [])
+                if not isinstance(file_list, list):
+                    tries += 1
+                    time.sleep(2)
+                    continue
+
+                found_id = self._find_in_list_by_name(file_list, part, is_dir)
+                if found_id is not None:
+                    return found_id
+
+                tries = 0
+                last_file_id = data.get("lastFileId", -1)
+                if last_file_id == -1:
+                    # 目录遍历完毕，未找到
+                    return None
+
+            except Exception:
+                tries += 1
+                # log.error(f"v2获取文件列表异常: {e}，重试中... (尝试 {tries}/{max_tries})")
+                time.sleep(2 * (tries + 1))
+                continue
+
+        if tries >= max_tries:
+            # log.error(f"目录 {parent_id} (v2) 获取失败，已达到最大重试次数")
+            return None
+
+        return None

@@ -54,14 +54,18 @@ class Auth(Jwt):
         Returns:
             解析后的响应数据，符合统一响应模型
         """
+
+        verbose = kwargs.pop("verbose", getattr(self, "verbose", True))
+
         try:
             resp = self.request(method, url, **kwargs)
             resp.raise_for_status()
             respjson = resp.json()
         except Exception as e:
-            log.error(f"请求失败: {e}")
-            log.error(f"请求方法: {method}, URL: {url}")
-            log.error(f"原始响应: {resp.text if 'resp' in locals() else '无响应'}")
+            if verbose:
+                log.error(f"请求失败: {e}")
+                log.error(f"请求方法: {method}, URL: {url}")
+                log.error(f"原始响应: {resp.text if 'resp' in locals() else '无响应'}")
             raise ValueError("请求过程中发生错误，请检查日志以获取详细信息。") from e
         if 429 == respjson.get("code"):
             # '操作频繁，请稍后再试' (防止打印大量日志)
@@ -71,7 +75,8 @@ class Auth(Jwt):
             parsed = BaseResponse.model_validate(respjson)
             return parsed.model_dump()
         except Exception as e:
-            log.error(f"解析响应 JSON 失败: {e}")
-            log.error(f"请求方法: {method}, URL: {url}")
-            log.error(f"原始响应: {respjson}")
+            if verbose:
+                log.error(f"解析响应 JSON 失败: {e}")
+                log.error(f"请求方法: {method}, URL: {url}")
+                log.error(f"原始响应: {respjson}")
             return respjson
