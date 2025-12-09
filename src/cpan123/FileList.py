@@ -1,3 +1,4 @@
+import hashlib
 import json
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
@@ -69,20 +70,39 @@ class FileList:
             log.error(f"生成时间戳失败: {e}")
             return str(int(time.time() * 1000))
 
+    def _shrink_name(self, path: Path, max_bytes: int = 150) -> tuple[Path, bool]:
+        name = path.name
+        if len(name.encode("utf-8")) <= max_bytes:
+            return path, False
+
+        suffix = path.suffix
+        stem = path.stem
+        hash_suffix = hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
+        reserve = len(suffix.encode("utf-8")) + len(hash_suffix.encode("utf-8")) + 1
+        remain_bytes = max_bytes - reserve
+        remain_bytes = max(remain_bytes, 12)  # 保留部分原始信息
+        trimmed_stem = stem.encode("utf-8")[:remain_bytes].decode("utf-8", errors="ignore")
+        new_name = f"{trimmed_stem}_{hash_suffix}{suffix}"
+        return path.with_name(new_name), True
+
     def _save_json_safely(self, data: Dict[str, Any], json_path: Path) -> bool:
         """安全保存 JSON 文件"""
         try:
+            safe_path, truncated = self._shrink_name(json_path)
+
             # 确保目录存在
-            json_path.parent.mkdir(parents=True, exist_ok=True)
+            safe_path.parent.mkdir(parents=True, exist_ok=True)
 
             # 使用临时文件避免写入过程中断导致文件损坏
-            temp_path = json_path.with_suffix(".tmp")
+            temp_path = safe_path.with_suffix(".tmp")
 
             with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
 
             # 重命名临时文件为目标文件（原子操作）
-            temp_path.rename(json_path)
+            temp_path.rename(safe_path)
+            if truncated:
+                log.warning(f"文件名过长，已截断保存为: {safe_path.name}")
             return True
 
         except IOError as e:
