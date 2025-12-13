@@ -116,6 +116,34 @@ class API:
         # GET 域名 + /api/v1/offline/download/process
         DOWNLOAD_PROCESS = API_BASE + "/api/v1/offline/download/process"
 
+    class DirectlinkPath:
+        # 启用直链空间 POST 域名 + /api/v1/direct-link/enable
+        ENABLE = API_BASE + "/api/v1/direct-link/enable"
+
+        # 获取直链链接 GET 域名 + /api/v1/direct-link/url
+        URL = API_BASE + "/api/v1/direct-link/url"
+
+        # 禁用直链空间 API： POST 域名 + /api/v1/direct-link/disable
+        DISABLE = API_BASE + "/api/v1/direct-link/disable"
+
+        # 直链缓存刷新 POST 域名 + /api/v1/direct-link/cache/refresh
+        CACHE_REFRESH = API_BASE + "/api/v1/direct-link/cache/refresh"
+
+        # 获取直链离线日志 GET 域名 + /api/v1/direct-link/offline/logs
+        LOG = API_BASE + "/api/v1/direct-link/offline/logs"
+
+        # 获取直链流量日志 GET 域名 + /api/v1/direct-link/log, 注: 此接口需要开通开发者权益，并且仅限查询近三天的日志数据
+        LOG_TRAFFIC = API_BASE + "/api/v1/direct-link/log"
+
+        #  开启关闭ip黑名单 POST 域名 + /api/v1/developer/config/forbide-ip/switch  注： 此接口需要开通开发者权益
+        IP_BLACKLIST_SWITCH = API_BASE + "/api/v1/developer/config/forbide-ip/switch"
+
+        # 更新ip黑名单列表  POST 域名 + /api/v1/developer/config/forbide-ip/update  注： 此接口需要开通开发者权益
+        IP_BLACKLIST_UPDATE = API_BASE + "/api/v1/developer/config/forbide-ip/update"
+
+        #  ip黑名单列表 获取开发者功能IP配置黑名单 GET 域名 + /api/v1/developer/config/forbide-ip/list 注： 此接口需要开通开发者权益
+        IP_BLACKLIST_LIST = API_BASE + "/api/v1/developer/config/forbide-ip/list"
+
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)  AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 ERROR_MAP = {}

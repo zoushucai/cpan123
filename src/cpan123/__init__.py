@@ -1,4 +1,5 @@
 from .Auth import Auth
+from .Directlink import Directlink
 from .Downloader import Downloader
 from .File import File
 from .File2 import File2
@@ -35,3 +36,4 @@ class Pan123OpenAPI:
         self.filelist = FileList(self.auth, self.userinfo)
         self.share = Share(self.auth, self.userinfo)
         self.offline = Offline(self.auth, self.userinfo)
+        self.directlink = Directlink(self.auth, self.userinfo)
