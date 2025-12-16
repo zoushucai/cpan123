@@ -1,6 +1,6 @@
 [project]
 name = "cpan123"
-version = "0.2.5"
+version = "0.2.6"
 description = "123云盘的python接口文档(非官方)"
 readme = "README.md"
 authors = [
