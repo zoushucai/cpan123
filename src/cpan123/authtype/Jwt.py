@@ -72,6 +72,19 @@ class Jwt:
         """从响应数据中获取指定 key 的值，支持多层嵌套"""
         return data.get(key) or data.get("data", {}).get(key) or ""
 
+    def _fetch_token(self) -> None:
+        """通过 client_id/secret 获取新的 access_token"""
+        if not self.client_id or not self.client_secret:
+            raise AuthError(-1, "缺少 client_id 或 client_secret，无法刷新 token")
+
+        data = {
+            "clientID": self.client_id,
+            "clientSecret": self.client_secret,
+        }
+        headers = {"Platform": "open_platform"}
+        respjson = self._do_request("POST", url=API.JWT.TOKEN, headers=headers, data=data).json()
+        self._update_token(respjson)
+
     def _update_token(self, data: dict):
         """更新本地 token 并写回 .env"""
         code = int(self._get_key(data, "code") or 0)
@@ -112,21 +125,13 @@ class Jwt:
 
     # -------------------- Token 自动获取 --------------------
     def _get_token_if_needed(self) -> str:
-        if self.is_token_valid:
-            return self.access_token
+        if not self.access_token or not self.is_token_valid:
+            self._fetch_token()
+        return self.access_token
 
-        if not self.access_token:
-            # 无 token , 则重新授权获取
-            data = {
-                "clientID": self.client_id,
-                "clientSecret": self.client_secret,
-            }
-            headers = {"Platform": "open_platform"}
-            respjson = self._do_request("POST", url=API.JWT.TOKEN, headers=headers, data=data).json()
-            self._update_token(respjson)
-        else:
-            # 如果提供了token, 直接使用
-            pass
+    def refresh_token(self) -> str:
+        """强制刷新 access_token"""
+        self._fetch_token()
         return self.access_token
 
     # -------------------- 公共接口 --------------------

@@ -4,7 +4,7 @@ from urllib.parse import urljoin
 import httpx
 
 from .authtype.Jwt import Jwt
-from .model.Base import BaseResponse
+from .model.Base import AuthError, BaseResponse
 from .utils.Constants import API
 from .utils.Logger import log
 
@@ -57,26 +57,50 @@ class Auth(Jwt):
 
         verbose = kwargs.pop("verbose", getattr(self, "verbose", True))
 
-        try:
-            resp = self.request(method, url, **kwargs)
-            resp.raise_for_status()
-            respjson = resp.json()
-        except Exception as e:
-            if verbose:
-                log.error(f"请求失败: {e}")
-                log.error(f"请求方法: {method}, URL: {url}")
-                log.error(f"原始响应: {resp.text if 'resp' in locals() else '无响应'}")
-            raise ValueError("请求过程中发生错误，请检查日志以获取详细信息。") from e
-        if 429 == respjson.get("code"):
-            # '操作频繁，请稍后再试' (防止打印大量日志)
-            return respjson
+        invalid_codes = {401, 40140116}
+        last_error: Exception | None = None
 
-        try:
-            parsed = BaseResponse.model_validate(respjson)
-            return parsed.model_dump()
-        except Exception as e:
-            if verbose:
-                log.error(f"解析响应 JSON 失败: {e}")
-                log.error(f"请求方法: {method}, URL: {url}")
-                log.error(f"原始响应: {respjson}")
-            return respjson
+        for attempt in range(2):
+            resp = None
+            try:
+                resp = self.request(method, url, **kwargs)
+                resp.raise_for_status()
+                respjson = resp.json()
+            except AuthError as e:
+                last_error = e
+                if e.code in invalid_codes and attempt == 0:
+                    self.refresh_token()
+                    continue
+                if verbose:
+                    log.error(f"授权失败: {e}")
+                    log.error(f"请求方法: {method}, URL: {url}")
+                raise ValueError("授权失败，请检查凭据。") from e
+            except Exception as e:
+                last_error = e
+                if verbose:
+                    log.error(f"请求失败: {e}")
+                    log.error(f"请求方法: {method}, URL: {url}")
+                    log.error(f"原始响应: {resp.text if resp is not None else '无响应'}")
+                raise ValueError("请求过程中发生错误，请检查日志以获取详细信息。") from e
+
+            if respjson.get("code") == 429:
+                return respjson
+
+            message = respjson.get("message", "")
+            if (respjson.get("code") in invalid_codes or "expired" in message.lower()) and attempt == 0:
+                self.refresh_token()
+                continue
+
+            try:
+                parsed = BaseResponse.model_validate(respjson)
+                return parsed.model_dump()
+            except Exception as e:
+                if verbose:
+                    log.error(f"解析响应 JSON 失败: {e}")
+                    log.error(f"请求方法: {method}, URL: {url}")
+                    log.error(f"原始响应: {respjson}")
+                return respjson
+
+        if last_error is not None:
+            raise ValueError("多次刷新 token 后仍失败，请检查凭据。") from last_error
+        raise ValueError("请求失败，且未返回任何错误详情。")
