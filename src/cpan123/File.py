@@ -183,7 +183,7 @@ class File:
         searchData: Optional[str] = None,
         searchMode: Optional[int] = 0,
         lastFileId: Optional[int] = None,
-        isTrashed: bool = False,
+        isTrashed: bool = True,
     ) -> dict:
         """获取文件列表(V2版本, v1弃用)
 
@@ -195,7 +195,7 @@ class File:
             searchData (str, optional):搜索关键字将无视文件夹ID参数. 将会进行全局查找
             searchMode (int, optional): 搜索模式,0:模糊搜索,1:精确搜索,默认为0
             lastFileId (int, optional): 翻页查询时需要填写
-            isTrashed (bool): 是否包含回收站文件,默认不包含 (官方是包含的)
+            isTrashed (bool): 是否包含回收站文件,默认包含 (官方是包含的), 保持与官网一致
 
         """
         # 如果要对参数进行校验,需要 Field 等参数校验方法
@@ -216,6 +216,9 @@ class File:
         resp = self.auth.request_json("GET", API.FilePath.LIST_V2, params=params)
         # 不能要回收站的文件
         if isTrashed:
+            return resp
+        # 前提 fileList 存在
+        if "data" not in resp or "fileList" not in resp["data"]:
             return resp
 
         try:
