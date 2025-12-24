@@ -218,11 +218,16 @@ class File:
         if isTrashed:
             return resp
         # 前提 fileList 存在
-        if "data" not in resp or "fileList" not in resp["data"]:
-            return resp
-
         try:
-            resp["data"]["fileList"] = [file for file in resp["data"]["fileList"] if file.get("trashed") == 0]
+            if (
+                resp
+                and isinstance(resp, dict)
+                and "data" in resp
+                and isinstance(resp["data"], dict)
+                and "fileList" in resp["data"]
+                and isinstance(resp["data"]["fileList"], list)
+            ):
+                resp["data"]["fileList"] = [file for file in resp["data"]["fileList"] if file.get("trashed") == 0]
             return resp
         except Exception as e:
             log.error(f"过滤回收站文件时出错: {e}")
