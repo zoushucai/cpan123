@@ -8,7 +8,7 @@ class EnvConfig:
 
     SENSITIVE_KEYS = {"CLIENT_SECRET", "ACCESS_TOKEN", "REFRESH_TOKEN"}
 
-    def __init__(self, envpath: str | Path | None = None, default_name: str = ".env.115"):
+    def __init__(self, envpath: str | Path | None = None, default_name: str = ".env.123"):
         self.path = self._resolve_path(envpath, default_name)
         self._config = dotenv_values(self.path)
 

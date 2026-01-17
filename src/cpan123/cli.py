@@ -54,18 +54,31 @@ class AliasedGroup(click.Group):
 
 
 @click.group(cls=AliasedGroup)
-def cli():
+@click.option(
+    "-e",
+    "--env",
+    "envpath",
+    type=click.Path(),
+    default=None,
+    envvar="CPAN123_ENV",
+    help="指定 .env 路径（也可用环境变量 CPAN123_ENV）",
+)
+@click.pass_context
+def cli(ctx, envpath):
     """Pan123 CLI 工具"""
-    pass
+    ctx.ensure_object(dict)
+    ctx.obj["envpath"] = envpath
 
 
 @cli.command("download")
 @click.argument("remote_path", type=str)
 @click.option("-o", "--output", type=click.Path(), default=None, help="本地保存路径/目录（可选）")
 @click.option("--overwrite", is_flag=True, default=False, help="覆盖已存在的本地文件")
-def download_cmd(remote_path, output, overwrite):
+@click.pass_context
+def download_cmd(ctx, remote_path, output, overwrite):
     """自动识别云端路径是文件或文件夹并下载。"""
-    client = Pan123OpenAPI()
+    envpath = (ctx.obj or {}).get("envpath")
+    client = Pan123OpenAPI(envpath=envpath)
     res = client.downloader.download(remote_path, local_path=output, overwrite=overwrite)
     if res is None:
         click.echo(f"下载失败或路径不存在: {remote_path}")
@@ -84,9 +97,11 @@ def download_cmd(remote_path, output, overwrite):
 @click.option("-p", "--parent", type=int, default=0, show_default=True, help="云端目标目录 ID")
 @click.option("-d", "--dup", type=int, default=1, show_default=True, help="同名文件策略: 1=保留,2=覆盖")
 @click.option("-c", "--dir", "containDir", is_flag=True, default=True, show_default=True, help="包含本地目录结构")
-def upload_cmd(local_path, parent, dup, containDir):
+@click.pass_context
+def upload_cmd(ctx, local_path, parent, dup, containDir):
     """上传本地文件或目录到云端。会根据 local_path 自动判定文件或文件夹。"""
-    client = Pan123OpenAPI()
+    envpath = (ctx.obj or {}).get("envpath")
+    client = Pan123OpenAPI(envpath=envpath)
     path = Path(local_path)
     try:
         dup = 1 if dup == 1 else 2
