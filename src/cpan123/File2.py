@@ -59,6 +59,29 @@ class File2:
         return self.auth.request_json("POST", API.File2Path.CREATE, json=data)
 
     @validate_call
+    def sha1_reuse(self, parentFileID: int, filename: str, sha1: str, size: int, *, duplicate: int = 1) -> dict:
+        """秒传文件.
+
+        Args:
+            parentFileID: 父目录id,上传到根目录时填写 0
+            filename: 文件名要小于255个字符且不能包含一些特殊字符(不建议重名)
+            sha1: 文件的sha1值
+            size: 文件大小, 单位字节
+            duplicate: 当有相同文件名时,文件处理策略(1保留两者,新文件名将自动添加后缀,2覆盖原文件)
+
+        Returns:
+            秒传文件的响应数据
+        """
+        data = {
+            "parentFileID": parentFileID,
+            "filename": filename,
+            "sha1": sha1,
+            "size": size,
+            "duplicate": duplicate,
+        }
+        return self.auth.request_json("POST", API.File2Path.SHA1_REUSE, json=data)
+
+    @validate_call
     def slice(
         self,
         preuploadID: Union[int, str],

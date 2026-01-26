@@ -132,9 +132,9 @@ class Share:
             shareName: 分享链接名称,链接名要小于35个字符且不能包含特殊字符
             fileIDList: 分享文件ID列表,以逗号分割,最大只支持拼接100个文件ID,示例:1,2,3
             payAmount: 请输入整数|最小金额1元|最大金额99元
-            isReward 是否打赏, 0 否, 1 是, 默认 0
+            isReward: 是否打赏, 0 否, 1 是, 默认 0
             resourceDesc: 资源描述
-            trafficSwitch : 分享提取流量包, 1 全部关闭, 2 打开游客免登录提取, 3 打开超流量用户提取, 4 全部开启
+            trafficSwitch: 分享提取流量包, 1 全部关闭, 2 打开游客免登录提取, 3 打开超流量用户提取, 4 全部开启
             trafficLimitSwitch: 分享提取流量包流量限制开关, 1 关闭限制, 2 打开限制
             trafficLimit: 分享提取流量包限制流量, 单位：字节, 分享提取流量包限制流量
 

@@ -52,6 +52,8 @@ class API:
         UPLOAD_COMPLETE = API_BASE + "/upload/v2/file/upload_complete"
         DOMAIN = API_BASE + "/upload/v2/file/domain"
         # SINGLE_CREATE = API_BASE + "/upload/v2/file/single/create"
+        # sha1_reuse API： POST   域名 + /upload/v2/file/sha1_reuse
+        SHA1_REUSE = API_BASE + "/upload/v2/file/sha1_reuse"
 
     class FilePath:
         """文件相关接口 V1 版本(不含上传有关的接口, 因为上传接口在File2Path中)"""
