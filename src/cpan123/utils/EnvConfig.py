@@ -1,6 +1,7 @@
+import warnings
 from pathlib import Path
 
-from dotenv import dotenv_values, find_dotenv, set_key
+from dotenv import dotenv_values, set_key
 
 
 class EnvConfig:
@@ -15,20 +16,59 @@ class EnvConfig:
     # -------------------- 路径处理 --------------------
 
     def _resolve_path(self, envpath: str | Path | None, default_name: str) -> Path:
-        """解析配置文件路径，支持自动创建文件"""
+        """解析配置文件路径。
+
+        优先级：用户指定路径 > 当前目录 .env > 用户目录 default_name。
+        """
         if envpath:
             path = Path(envpath).expanduser()
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.touch(exist_ok=True)
+            if not path.exists():
+                raise FileNotFoundError(
+                    f"指定的环境文件不存在: {path}\n\n"
+                    f"请使用以下任一方式配置：\n"
+                    f"1) 通过 envpath 指向已存在的配置文件\n"
+                    f"2) 在当前目录创建 .env ({(Path.cwd() / '.env').resolve()})\n"
+                    f"3) 在用户目录创建 {default_name} ({Path.home() / default_name})"
+                )
             return path
 
-        found = find_dotenv(usecwd=True)
-        if found:
-            return Path(found)
+        cwd_env = Path.cwd() / ".env"
+        if cwd_env.exists():
+            if self._has_required_auth_keys(cwd_env):
+                return cwd_env
+            warnings.warn(
+                f"检测到当前目录配置文件 {cwd_env}，但缺少 CLIENT_ID 或 CLIENT_SECRET，将继续尝试用户目录配置文件 {Path.home() / default_name}。",
+                stacklevel=2,
+            )
 
         path = Path.home() / default_name
-        path.touch(exist_ok=True)
-        return path
+        if path.exists():
+            if self._has_required_auth_keys(path):
+                return path
+            warnings.warn(
+                f"检测到用户目录配置文件 {path}，但缺少 CLIENT_ID 或 CLIENT_SECRET。",
+                stacklevel=2,
+            )
+
+        raise FileNotFoundError(
+            "未找到环境配置文件。\n\n"
+            "查找优先级：\n"
+            "- 用户指定路径 envpath\n"
+            f"- 当前目录 .env ({cwd_env.resolve()})\n"
+            f"- 用户目录 {default_name} ({path})\n\n"
+            "注意：若文件存在但缺少 CLIENT_ID 或 CLIENT_SECRET，也会被视为无效。\n\n"
+            "请使用以下任一方式配置：\n"
+            "1) 初始化客户端时传入 envpath，指向你的配置文件\n"
+            f"2) 在当前运行目录创建 .env ({cwd_env.resolve()})\n"
+            f"3) 在用户目录创建 {default_name} ({path})\n\n"
+            "配置文件至少应包含：CLIENT_ID、CLIENT_SECRET"
+        )
+
+    def _has_required_auth_keys(self, path: Path) -> bool:
+        cfg = dotenv_values(path)
+        client_id = (cfg.get("CLIENT_ID") or "").strip()
+        client_secret = (cfg.get("CLIENT_SECRET") or "").strip()
+        return bool(client_id and client_secret)
 
     # -------------------- 配置访问 --------------------
 

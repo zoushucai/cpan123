@@ -19,7 +19,7 @@ class Jwt:
         JWT 授权与 Token 管理
 
         Args:
-            envpath: .env 文件路径, 如果为 None 则使用当前目录下的 .env
+            envpath: 环境文件路径。未指定时按优先级查找：用户指定 > 当前目录 .env > 用户目录 .env.123
             verbose: 是否启用详细日志输出
         """
         self.env = EnvConfig(envpath)
