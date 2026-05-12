@@ -38,7 +38,8 @@ class Jwt:
     # -------------------- HTTP 客户端 --------------------
     def _create_client(self) -> httpx.Client:
         hooks = {"request": [log_request], "response": [log_response]} if self.verbose else None
-        return httpx.Client(headers={"User-Agent": UA}, timeout=30, event_hooks=hooks)
+        timeout = httpx.Timeout(connect=30.0, read=120.0, write=120.0, pool=30.0)
+        return httpx.Client(headers={"User-Agent": UA}, timeout=timeout, event_hooks=hooks)
 
     # def _is_iso8601_format(self, date_str):
     #     try:

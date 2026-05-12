@@ -105,9 +105,21 @@ def upload_cmd(ctx, local_path, parent, dup, containDir):
     path = Path(local_path)
     try:
         dup = 1 if dup == 1 else 2
-        _ = client.uploader.upload(path, parentFileID=parent, duplicate=dup, contain_dir=containDir)
-        # 打印上传结果
-        click.echo(f"上传成功: {path} --> parent: {parent}")
+        result = client.uploader.upload(path, parentFileID=parent, duplicate=dup, contain_dir=containDir, method="chunked")
+        total = int(result.get("total", 0) or 0)
+        succeeded = int(result.get("succeeded", 0) or 0)
+        failed = int(result.get("failed", 0) or 0)
+
+        click.echo(f"上传完成: {path} --> parent: {parent}")
+        click.echo(f"总数: {total}, 成功: {succeeded}, 失败: {failed}")
+
+        if failed:
+            data = result.get("data") or {}
+            for file_path, detail in data.items():
+                if not isinstance(detail, dict) or detail.get("success", True):
+                    continue
+                click.echo(f"失败: {file_path} -> {detail.get('message', 'unknown error')}")
+            sys.exit(1)
         return None
     except Exception as e:
         click.echo(f"上传失败: {e}")

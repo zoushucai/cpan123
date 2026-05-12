@@ -34,6 +34,7 @@ class Uploader:
         self.auth = auth
         self.userinfo = userinfo
         self.file2 = File2(auth, userinfo=userinfo)
+        self.chunked_threshold_bytes = 10 * 1024 * 1024
 
     # ---------------------- 单文件：分片上传 ----------------------
     def upload_file_chunked(
@@ -251,7 +252,7 @@ class Uploader:
             raise RuntimeError("单步上传失败：响应数据为空")
 
         if data.get("completed") and data.get("fileID", 0) != 0:
-            return res
+            return data
         raise RuntimeError(f"单步上传失败: {res}")
 
     # ---------------------- 目录上传 ----------------------
@@ -259,7 +260,7 @@ class Uploader:
         self,
         folder_path: str | Path,
         parentFileID: int = 0,
-        method: str = "auto",  # 'single' | 'chunked' | 'auto'
+        method: str = "chunked",  # 'single' | 'chunked' | 'auto'
         max_workers: int = 4,
         single_limit_bytes: int = 1 * 1024 * 1024 * 1024,
         duplicate: int = 1,
@@ -270,7 +271,7 @@ class Uploader:
 
         - method='single'：全部使用单步上传（大于限制的文件会自动切换分片）
         - method='chunked'：全部使用分片上传
-        - method='auto'：小于单步限制走单步，其他分片
+        - method='auto'：小于分片阈值走单步，其他分片
         - 当 contain_dir=True 时，远程路径会包含根目录本身，例如：/文件夹名/子目录/文件
         - show_progress: 是否显示上传进度（默认 True）
 
@@ -297,7 +298,8 @@ class Uploader:
             real_path, remote = item
             size = real_path.stat().st_size
             try:
-                if method == "chunked" or (method == "auto" and size > single_limit_bytes):
+                use_chunked = method == "chunked" or (method == "auto" and size >= self.chunked_threshold_bytes)
+                if use_chunked:
                     data = self.upload_file_chunked(
                         real_path,
                         parentFileID=parentFileID,
@@ -379,8 +381,8 @@ class Uploader:
         failed = total - succeeded
 
         return {
-            "code": 0,
-            "message": "ok",
+            "code": 0 if failed == 0 else 1,
+            "message": "ok" if failed == 0 else "partial failure",
             "total": total,
             "succeeded": succeeded,
             "failed": failed,
@@ -413,6 +415,7 @@ class Uploader:
         duplicate: int = 1,
         contain_dir: bool = True,
         show_progress: bool = True,
+        method: str = "chunked",
     ) -> dict:
         """根据路径类型选择上传方式。
 
@@ -421,40 +424,103 @@ class Uploader:
             parentFileID: 父目录 id
             duplicate: 当有相同文件名时，文件处理策略（1保留两者，新文件名将自动添加后缀，2覆盖原文件）
             show_progress: 是否显示上传进度（默认 True）
+            method: 上传方式，默认统一走分片上传
 
         Returns:
-            服务端最终响应 data 字段
+            统一汇总后的上传结果
 
         """
         path = Path(file_path)
 
-        if path.is_file():  # 10MB 及以上走分片上传
-            size = path.stat().st_size
-            if size >= 10 * 1024 * 1024:
-                resp = self.upload_file_chunked(
-                    file_path=path,
-                    parentFileID=parentFileID,
-                    duplicate=duplicate,
-                    containDir=contain_dir,
-                    show_progress=show_progress,
-                )
-            else:
-                resp = self.upload_file_single(
-                    file_path=path,
-                    parentFileID=parentFileID,
-                    duplicate=duplicate,
-                    containDir=contain_dir,
-                )
+        if path.is_file():
+            try:
+                if method == "chunked":
+                    data = self.upload_file_chunked(
+                        file_path=path,
+                        parentFileID=parentFileID,
+                        duplicate=duplicate,
+                        containDir=contain_dir,
+                        show_progress=show_progress,
+                    )
+                elif method == "single":
+                    data = self.upload_file_single(
+                        file_path=path,
+                        parentFileID=parentFileID,
+                        duplicate=duplicate,
+                        containDir=contain_dir,
+                    )
+                else:
+                    size = path.stat().st_size
+                    if size >= self.chunked_threshold_bytes:
+                        data = self.upload_file_chunked(
+                            file_path=path,
+                            parentFileID=parentFileID,
+                            duplicate=duplicate,
+                            containDir=contain_dir,
+                            show_progress=show_progress,
+                        )
+                    else:
+                        data = self.upload_file_single(
+                            file_path=path,
+                            parentFileID=parentFileID,
+                            duplicate=duplicate,
+                            containDir=contain_dir,
+                        )
+            except Exception as e:
+                return {
+                    "code": 1,
+                    "message": "failed",
+                    "total": 1,
+                    "succeeded": 0,
+                    "failed": 1,
+                    "data": {
+                        str(path): {
+                            "code": 1,
+                            "message": str(e),
+                            "success": False,
+                            "data": None,
+                        }
+                    },
+                    "x-traceID": "my-trace-id",
+                }
+
+            success = False
+            if isinstance(data, dict):
+                file_id = int(data.get("fileID", 0) or 0)
+                completed = bool(data.get("completed"))
+                reuse = bool(data.get("reuse"))
+                success = file_id != 0 and (completed or reuse)
+
+            resp = {
+                "code": 0 if success else 1,
+                "message": "ok" if success else "failed",
+                "total": 1,
+                "succeeded": 1 if success else 0,
+                "failed": 0 if success else 1,
+                "data": {},
+                "x-traceID": "my-trace-id",
+            }
+            if not success:
+                resp["data"] = {
+                    str(path): {
+                        "code": 1,
+                        "message": "failed",
+                        "success": False,
+                        "data": data if isinstance(data, dict) else None,
+                    }
+                }
         elif path.is_dir():
             resp = self.upload_folder(
                 folder_path=path,
                 parentFileID=parentFileID,
-                duplicate=int(1 if duplicate else 2),
+                method=method,
+                duplicate=1 if duplicate == 1 else 2,
                 contain_dir=contain_dir,
                 show_progress=show_progress,
             )
         else:
             raise ValueError(f"路径既不是文件也不是目录: {path}")
-        # 防止返回的信息过多,把data字段重置为{}
-        resp["data"] = {}
+        # 单文件成功时不返回明细，避免输出过大
+        if path.is_file() and resp.get("succeeded") == resp.get("total"):
+            resp["data"] = {}
         return resp
