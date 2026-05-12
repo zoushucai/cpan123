@@ -423,6 +423,23 @@ class Uploader:
             active_count = len(snapshots)
             return f"活跃: {active_count} | {stage_text} | {name} ({size_text})"
 
+        def _result_text(real_path: Path, item: dict) -> str:
+            size_text = self._format_size(real_path.stat().st_size)
+            if isinstance(item, dict) and "error" in item:
+                return f"失败: {real_path.name} ({size_text}) -> {item.get('error')}"
+
+            inner = item.get("data") if isinstance(item, dict) and isinstance(item.get("data"), dict) else item
+            if isinstance(inner, dict):
+                file_id = int(inner.get("fileID", 0) or 0)
+                completed = bool(inner.get("completed"))
+                reuse = bool(inner.get("reuse"))
+                if file_id != 0 and (completed or reuse):
+                    if reuse:
+                        return f"已秒传: {real_path.name} ({size_text})"
+                    return f"已上传: {real_path.name} ({size_text})"
+
+            return f"失败: {real_path.name} ({size_text}) -> unexpected response"
+
         def _task(item: tuple[Path, str]) -> tuple[Path, dict]:
             real_path, remote = item
             size = real_path.stat().st_size
@@ -495,6 +512,7 @@ class Uploader:
                     for fut in as_completed(fut_map):
                         result = fut.result()
                         results.append(result)
+                        tqdm.write(_result_text(result[0], result[1]))
                         _clear_status(result[0])
                         pbar.set_postfix_str(_progress_text())
                         pbar.update(1)
