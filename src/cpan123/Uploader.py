@@ -3,7 +3,8 @@ import math
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
+from threading import Lock
+from typing import Callable, Optional
 
 from tqdm import tqdm
 
@@ -48,6 +49,7 @@ class Uploader:
         poll_timeout_sec: int = 300,
         remote_path: Optional[str] = None,
         show_progress: bool = True,
+        status_callback: Optional[Callable[[dict], None]] = None,
     ) -> dict:
         """按分片上传单个文件。
 
@@ -60,6 +62,7 @@ class Uploader:
             slice_size: 指定分片大小（可选，不传使用服务端下发 sliceSize）
             poll_timeout_sec: upload_complete 轮询超时时间
             show_progress: 是否显示上传进度（默认 True）
+            status_callback: 上传状态回调，用于上层汇报阶段变化
 
         Returns:
             服务端最终响应 data 字段
@@ -68,6 +71,7 @@ class Uploader:
         assert path.exists() and path.is_file(), f"文件不存在: {path}"
 
         size = path.stat().st_size
+        size_text = self._format_size(size)
         etag = calculate_md5(path)
         # 生成 filename，是否带目录由 containDir 决定
         if not containDir:
@@ -115,6 +119,19 @@ class Uploader:
         # 2) 逐片上传
         total_parts = math.ceil(size / real_slice) if real_slice else 0
 
+        if status_callback:
+            status_callback(
+                {
+                    "stage": "uploading",
+                    "file": str(path),
+                    "name": path.name,
+                    "size": size,
+                    "size_text": size_text,
+                    "uploaded_parts": 0,
+                    "total_parts": total_parts,
+                }
+            )
+
         if show_progress:
             with tqdm(
                 total=size,
@@ -138,6 +155,19 @@ class Uploader:
                             upload_server=upload_server,
                         )
 
+                        if status_callback:
+                            status_callback(
+                                {
+                                    "stage": "uploading",
+                                    "file": str(path),
+                                    "name": path.name,
+                                    "size": size,
+                                    "size_text": size_text,
+                                    "uploaded_parts": part_no,
+                                    "total_parts": total_parts,
+                                }
+                            )
+
                         # 更新进度条
                         pbar.update(len(chunk))
         else:
@@ -156,8 +186,33 @@ class Uploader:
                         upload_server=upload_server,
                     )
 
+                    if status_callback:
+                        status_callback(
+                            {
+                                "stage": "uploading",
+                                "file": str(path),
+                                "name": path.name,
+                                "size": size,
+                                "size_text": size_text,
+                                "uploaded_parts": part_no,
+                                "total_parts": total_parts,
+                            }
+                        )
+
         # 3) 完成上传（必要时轮询）
         start = time.time()
+        if status_callback:
+            status_callback(
+                {
+                    "stage": "confirming",
+                    "file": str(path),
+                    "name": path.name,
+                    "size": size,
+                    "size_text": size_text,
+                    "uploaded_parts": total_parts,
+                    "total_parts": total_parts,
+                }
+            )
         while True:
             time.sleep(2)
             done = self.file2.upload_complete(preuploadID=preuploadID)
@@ -171,9 +226,33 @@ class Uploader:
 
             d = done.get("data")
             if d and d.get("completed") and d.get("fileID", 0) != 0:
+                if status_callback:
+                    status_callback(
+                        {
+                            "stage": "done",
+                            "file": str(path),
+                            "name": path.name,
+                            "size": size,
+                            "size_text": size_text,
+                            "uploaded_parts": total_parts,
+                            "total_parts": total_parts,
+                        }
+                    )
                 return d
 
             if time.time() - start > poll_timeout_sec:
+                if status_callback:
+                    status_callback(
+                        {
+                            "stage": "timeout",
+                            "file": str(path),
+                            "name": path.name,
+                            "size": size,
+                            "size_text": size_text,
+                            "uploaded_parts": total_parts,
+                            "total_parts": total_parts,
+                        }
+                    )
                 raise TimeoutError("上传完成确认超时")
 
     # ---------------------- 单文件：单步上传 ----------------------
@@ -293,6 +372,56 @@ class Uploader:
                 files.append((p, remote))
 
         results: list[tuple[Path, dict]] = []
+        status_map: dict[str, dict] = {}
+        status_lock = Lock()
+
+        def _set_status(payload: dict) -> None:
+            file_key = str(payload.get("file", ""))
+            if not file_key:
+                return
+            with status_lock:
+                status_map[file_key] = payload
+
+        def _clear_status(real_path: Path) -> None:
+            with status_lock:
+                status_map.pop(str(real_path), None)
+
+        def _progress_text() -> str:
+            with status_lock:
+                if not status_map:
+                    return "空闲"
+                snapshots = list(status_map.values())
+
+            priority = {"confirming": 0, "uploading": 1, "failed": 2, "timeout": 3, "done": 4}
+            snapshots.sort(
+                key=lambda item: (
+                    priority.get(str(item.get("stage")), 99),
+                    str(item.get("name", "")),
+                )
+            )
+            current = snapshots[0]
+            stage = str(current.get("stage", "uploading"))
+            name = str(current.get("name", ""))
+            size_text = str(current.get("size_text", ""))
+            uploaded_parts = int(current.get("uploaded_parts", 0) or 0)
+            total_parts = int(current.get("total_parts", 0) or 0)
+
+            if stage == "confirming":
+                stage_text = "等待服务端确认"
+            elif stage == "uploading":
+                if total_parts > 0:
+                    stage_text = f"上传分片 {uploaded_parts}/{total_parts}"
+                else:
+                    stage_text = "上传中"
+            elif stage == "failed":
+                stage_text = "上传失败"
+            elif stage == "timeout":
+                stage_text = "确认超时"
+            else:
+                stage_text = "处理中"
+
+            active_count = len(snapshots)
+            return f"活跃: {active_count} | {stage_text} | {name} ({size_text})"
 
         def _task(item: tuple[Path, str]) -> tuple[Path, dict]:
             real_path, remote = item
@@ -307,8 +436,20 @@ class Uploader:
                         containDir=contain_dir,
                         remote_path=remote,
                         show_progress=False,  # 多线程环境下禁用单文件进度条
+                        status_callback=_set_status,
                     )
                 else:
+                    _set_status(
+                        {
+                            "stage": "uploading",
+                            "file": str(real_path),
+                            "name": real_path.name,
+                            "size": size,
+                            "size_text": self._format_size(size),
+                            "uploaded_parts": 0,
+                            "total_parts": 0,
+                        }
+                    )
                     data = self.upload_file_single(
                         real_path,
                         parentFileID=parentFileID,
@@ -317,8 +458,30 @@ class Uploader:
                         single_limit_bytes=single_limit_bytes,
                         remote_path=remote,
                     )
+                    _set_status(
+                        {
+                            "stage": "done",
+                            "file": str(real_path),
+                            "name": real_path.name,
+                            "size": size,
+                            "size_text": self._format_size(size),
+                            "uploaded_parts": 0,
+                            "total_parts": 0,
+                        }
+                    )
                 return (real_path, data)
             except Exception as e:  # 汇总错误，便于一次性查看
+                _set_status(
+                    {
+                        "stage": "failed",
+                        "file": str(real_path),
+                        "name": real_path.name,
+                        "size": size,
+                        "size_text": self._format_size(size),
+                        "uploaded_parts": 0,
+                        "total_parts": 0,
+                    }
+                )
                 return (real_path, {"error": str(e)})
 
         # 多线程提交任务
@@ -328,15 +491,18 @@ class Uploader:
             if show_progress:
                 # 显示文件级别的进度条
                 with tqdm(total=len(files), desc="上传文件", unit="file") as pbar:
+                    pbar.set_postfix_str(_progress_text())
                     for fut in as_completed(fut_map):
                         result = fut.result()
                         results.append(result)
-                        # 更新文件名显示
-                        pbar.set_postfix_str(f"当前: {result[0].name}")
+                        _clear_status(result[0])
+                        pbar.set_postfix_str(_progress_text())
                         pbar.update(1)
             else:
                 for fut in as_completed(fut_map):
-                    results.append(fut.result())
+                    result = fut.result()
+                    results.append(result)
+                    _clear_status(result[0])
 
         # 规范化每个文件的返回，统一为 {code, message, success, data}
         normalized: dict[str, dict] = {}
