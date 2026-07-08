@@ -66,11 +66,8 @@ class Directlink:
 
     # 直链缓存刷新
     @validate_call
-    def refresh(self, url: str) -> dict:
+    def refresh(self) -> dict:
         """直链缓存刷新
-
-        Args:
-            url (str): 需要刷新的直链URL
 
         Returns:
             刷新结果

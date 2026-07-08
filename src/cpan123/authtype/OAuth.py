@@ -46,12 +46,22 @@ class OAuth:
         self.is_dev = env.get("ENV", "production").lower() in ("dev", "development")
 
         # 后端 URL
-        self.backend_oauth_url = env.get("BACKEND_OAUTH_URL_DEV") if self.is_dev else env.get("BACKEND_OAUTH_URL", self.DEFAULT_BACKEND_URL)
+        self.backend_oauth_url = (
+            env.get("BACKEND_OAUTH_URL_DEV") if self.is_dev else env.get("BACKEND_OAUTH_URL", self.DEFAULT_BACKEND_URL)
+        )
 
         # client 相关
         self.client_secret = env.get("CLIENT_SECRET")
-        self.client_id = env.require("CLIENT_ID", "CLIENT_ID 必须设置") if self.client_secret else env.get("CLIENT_ID", self.DEFAULT_CLIENT_ID)
-        self.redirect_uri = env.require("REDIRECT_URI", "REDIRECT_URI 必须设置") if self.client_secret else env.get("REDIRECT_URI", self.DEFAULT_REDIRECT_URI)
+        self.client_id = (
+            env.require("CLIENT_ID", "CLIENT_ID 必须设置")
+            if self.client_secret
+            else env.get("CLIENT_ID", self.DEFAULT_CLIENT_ID)
+        )
+        self.redirect_uri = (
+            env.require("REDIRECT_URI", "REDIRECT_URI 必须设置")
+            if self.client_secret
+            else env.get("REDIRECT_URI", self.DEFAULT_REDIRECT_URI)
+        )
 
         # token 相关
         self.access_token = env.get("ACCESS_TOKEN")
@@ -63,10 +73,7 @@ class OAuth:
     # ==========================================================
 
     def _create_client(self) -> httpx.Client:
-        if self.verbose:
-            hooks = {"request": [log_request], "response": [log_response]}
-        else:
-            hooks = None
+        hooks = {"request": [log_request], "response": [log_response]} if self.verbose else None
         return httpx.Client(headers={"User-Agent": UA}, timeout=30, event_hooks=hooks)
 
     # ==========================================================
@@ -85,7 +92,7 @@ class OAuth:
 
         if isinstance(expire_value, int):
             t = expire_value
-        elif isinstance(expire_value, (str, float)):
+        elif isinstance(expire_value, str | float):
             try:
                 t = int(float(expire_value))
             except (TypeError, ValueError):

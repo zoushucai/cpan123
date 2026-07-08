@@ -1,17 +1,17 @@
 import hashlib
 import math
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from threading import Lock
-from typing import Callable, Optional
 
 from tqdm import tqdm
 
 from .Auth import Auth
 from .File2 import File2
 from .model.Base import UserInfoModel
-from .utils.md5 import calculate_md5
+from .utils.md5 import calculate_md5, calculate_sha1
 
 
 class Uploader:
@@ -44,12 +44,13 @@ class Uploader:
         parentFileID: int = 0,
         duplicate: int = 1,
         containDir: bool = False,
-        server: Optional[str] = None,
-        slice_size: Optional[int] = None,
+        server: str | None = None,
+        slice_size: int | None = None,
         poll_timeout_sec: int = 300,
-        remote_path: Optional[str] = None,
+        remote_path: str | None = None,
         show_progress: bool = True,
-        status_callback: Optional[Callable[[dict], None]] = None,
+        status_callback: Callable[[dict], None] | None = None,
+        try_sha1: bool = False,
     ) -> dict:
         """按分片上传单个文件。
 
@@ -63,6 +64,7 @@ class Uploader:
             poll_timeout_sec: upload_complete 轮询超时时间
             show_progress: 是否显示上传进度（默认 True）
             status_callback: 上传状态回调，用于上层汇报阶段变化
+            try_sha1: 是否尝试 SHA1 秒传（默认 False）
 
         Returns:
             服务端最终响应 data 字段
@@ -74,15 +76,33 @@ class Uploader:
         size_text = self._format_size(size)
         etag = calculate_md5(path)
         # 生成 filename，是否带目录由 containDir 决定
-        if not containDir:
-            filename = path.name
-        else:
-            # 允许外部传入远程相对路径，避免把本机绝对路径上传
-            if remote_path:
-                filename = remote_path
-            else:
-                # 兜底：使用文件名（不带目录）
-                filename = path.name
+        filename = path.name if not containDir else remote_path or path.name
+
+        # 0) 优先尝试 SHA1 秒传
+        if try_sha1:
+            sha1 = calculate_sha1(path)
+            sha1_resp = self.file2.sha1_reuse(
+                parentFileID=parentFileID,
+                filename=filename,
+                sha1=sha1,
+                size=size,
+                duplicate=duplicate,
+            )
+            sha1_data = sha1_resp.get("data", {})
+            if sha1_resp.get("code") == 0 and sha1_data.get("reuse") is True and sha1_data.get("fileID", 0) != 0:
+                if status_callback:
+                    status_callback(
+                        {
+                            "stage": "done",
+                            "file": str(path),
+                            "name": path.name,
+                            "size": size,
+                            "size_text": size_text,
+                            "uploaded_parts": 0,
+                            "total_parts": 0,
+                        }
+                    )
+                return sha1_data
 
         # 1) 创建上传任务
         resp = self.file2.create(
@@ -133,43 +153,45 @@ class Uploader:
             )
 
         if show_progress:
-            with tqdm(
-                total=size,
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-                desc=f"上传 {filename}",
-            ) as pbar:
-                with path.open("rb") as f:
-                    for part_no in range(1, total_parts + 1):
-                        chunk = f.read(real_slice)
-                        if not chunk:
-                            break
+            with (
+                tqdm(
+                    total=size,
+                    unit="B",
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    desc=f"上传 {filename}",
+                ) as pbar,
+                path.open("rb") as f,
+            ):
+                for part_no in range(1, total_parts + 1):
+                    chunk = f.read(real_slice)
+                    if not chunk:
+                        break
 
-                        # 使用 File2.slice 方法上传分片，传入上传服务器地址
-                        self.file2.slice(
-                            preuploadID=preuploadID,
-                            sliceNo=part_no,
-                            sliceMD5=Uploader.__md5_bytes(chunk),
-                            slice=chunk,
-                            upload_server=upload_server,
+                    # 使用 File2.slice 方法上传分片，传入上传服务器地址
+                    self.file2.slice(
+                        preuploadID=preuploadID,
+                        sliceNo=part_no,
+                        sliceMD5=Uploader.__md5_bytes(chunk),
+                        slice=chunk,
+                        upload_server=upload_server,
+                    )
+
+                    if status_callback:
+                        status_callback(
+                            {
+                                "stage": "uploading",
+                                "file": str(path),
+                                "name": path.name,
+                                "size": size,
+                                "size_text": size_text,
+                                "uploaded_parts": part_no,
+                                "total_parts": total_parts,
+                            }
                         )
 
-                        if status_callback:
-                            status_callback(
-                                {
-                                    "stage": "uploading",
-                                    "file": str(path),
-                                    "name": path.name,
-                                    "size": size,
-                                    "size_text": size_text,
-                                    "uploaded_parts": part_no,
-                                    "total_parts": total_parts,
-                                }
-                            )
-
-                        # 更新进度条
-                        pbar.update(len(chunk))
+                    # 更新进度条
+                    pbar.update(len(chunk))
         else:
             with path.open("rb") as f:
                 for part_no in range(1, total_parts + 1):
@@ -262,9 +284,9 @@ class Uploader:
         parentFileID: int = 0,
         duplicate: int = 1,
         containDir: bool = False,
-        domain: Optional[str] = None,
+        domain: str | None = None,
         single_limit_bytes: int = 1 * 1024 * 1024 * 1024,  # 1GB（接口限制）
-        remote_path: Optional[str] = None,
+        remote_path: str | None = None,
     ) -> dict:
         """单步上传单个文件（小文件）。
 
@@ -283,13 +305,7 @@ class Uploader:
             raise ValueError("文件过大，请使用分片上传")
 
         etag = calculate_md5(path)
-        if not containDir:
-            filename = path.name
-        else:
-            if remote_path:
-                filename = remote_path
-            else:
-                filename = path.name
+        filename = path.name if not containDir else remote_path or path.name
 
         # 选择上传域名
         upload_domain = domain
@@ -364,11 +380,7 @@ class Uploader:
             if p.is_file():
                 # 统一相对路径（用于 containDir）
                 rel = p.relative_to(root)
-                if contain_dir:
-                    # 包含根目录本身，但不加开头的 /
-                    remote = f"{root.name}/{rel.as_posix()}"
-                else:
-                    remote = p.name
+                remote = f"{root.name}/{rel.as_posix()}" if contain_dir else p.name
                 files.append((p, remote))
 
         results: list[tuple[Path, dict]] = []
@@ -392,7 +404,13 @@ class Uploader:
                     return "空闲"
                 snapshots = list(status_map.values())
 
-            priority = {"confirming": 0, "uploading": 1, "failed": 2, "timeout": 3, "done": 4}
+            priority = {
+                "confirming": 0,
+                "uploading": 1,
+                "failed": 2,
+                "timeout": 3,
+                "done": 4,
+            }
             snapshots.sort(
                 key=lambda item: (
                     priority.get(str(item.get("stage")), 99),
@@ -409,10 +427,7 @@ class Uploader:
             if stage == "confirming":
                 stage_text = "等待服务端确认"
             elif stage == "uploading":
-                if total_parts > 0:
-                    stage_text = f"上传分片 {uploaded_parts}/{total_parts}"
-                else:
-                    stage_text = "上传中"
+                stage_text = f"上传分片 {uploaded_parts}/{total_parts}" if total_parts > 0 else "上传中"
             elif stage == "failed":
                 stage_text = "上传失败"
             elif stage == "timeout":

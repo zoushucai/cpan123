@@ -1,5 +1,4 @@
 from pathlib import Path, PurePosixPath
-from typing import List, Optional
 
 from py3_wget.main import download_file
 from pydantic import BaseModel, validate_call
@@ -9,6 +8,7 @@ from .Auth import Auth
 from .File import File
 from .File2 import File2
 from .model.Base import UserInfoModel
+from .utils.Logger import log
 
 
 class FileItem(BaseModel):
@@ -39,10 +39,10 @@ class Downloader:
     def download_file(
         self,
         remote_path: str,
-        local_path: Optional[str] = None,
+        local_path: str | None = None,
         overwrite: bool = False,
         show_progress: bool = True,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """从云端下载单个文件到本地
 
         Args:
@@ -74,27 +74,24 @@ class Downloader:
             raise ValueError(f"路径似乎不是文件（没有文件扩展名）: {cloud_path}")
 
         # 确定本地保存路径
-        if local_path is None:
-            save_path = Path(cloud_path.name)
-        else:
-            save_path = Path(local_path)
+        save_path = Path(cloud_path.name) if local_path is None else Path(local_path)
 
         # 检查本地文件是否存在
         if save_path.exists() and not overwrite:
-            print(f"⚠️ 文件 {save_path} 已存在，跳过下载（使用 overwrite=True 强制覆盖）")
+            log.warning(f"文件 {save_path} 已存在，跳过下载（使用 overwrite=True 强制覆盖）")
             return None
 
         # 查找云端文件
         fileId, fileItem = self._find_file_by_path(cloud_path)
         if not fileId or not fileItem:
-            print(f"❌ 云端找不到文件: {cloud_path}")
+            log.error(f"云端找不到文件: {cloud_path}")
             return None
 
         # 获取下载链接
         respjson = self.file.download_info(fileId)
         download_url = respjson.get("data", {}).get("downloadUrl", "")
         if not download_url:
-            print(f"❌ 无法获取下载链接: {cloud_path}")
+            log.error(f"无法获取下载链接: {cloud_path}")
             return None
 
         # 构建返回信息
@@ -112,7 +109,7 @@ class Downloader:
         # 下载文件
         try:
             if show_progress:
-                print(f"📥 下载: {cloud_path} -> {save_path}")
+                log.info(f"下载: {cloud_path} -> {save_path}")
 
             download_file(
                 url=download_url,
@@ -124,18 +121,18 @@ class Downloader:
             )
 
             if show_progress:
-                print(f"✅ 下载完成: {save_path}")
+                log.info(f"下载完成: {save_path}")
 
             return download_info
         except Exception as e:
-            print(f"❌ 下载失败: {e}")
+            log.error(f"下载失败: {e}")
             return None
 
     @validate_call
     def download_folder(
         self,
         remote_path: str,
-        local_path: Optional[str] = None,
+        local_path: str | None = None,
         overwrite: bool = False,
         show_progress: bool = True,
     ) -> dict:
@@ -175,17 +172,14 @@ class Downloader:
             raise ValueError("不支持下载根目录，请指定具体文件夹")
 
         # 确定本地保存目录
-        if local_path is None:
-            save_dir = Path(cloud_path.name)
-        else:
-            save_dir = Path(local_path)
+        save_dir = Path(cloud_path.name) if local_path is None else Path(local_path)
 
         save_dir.mkdir(parents=True, exist_ok=True)
 
         # 查找云端文件夹
         fileId, _ = self._find_file_by_path(cloud_path, is_dir=True)
         if not fileId:
-            print(f"❌ 云端找不到文件夹: {cloud_path}")
+            log.error(f"云端找不到文件夹: {cloud_path}")
             return {"total": 0, "succeeded": 0, "failed": 0, "files": []}
 
         # 获取文件夹中的所有文件
@@ -195,7 +189,7 @@ class Downloader:
         files_to_download = [f for f in file_list if f["type"] == 0 and f["trashed"] == 0]
 
         if not files_to_download:
-            print(f"⚠️ 文件夹为空: {cloud_path}")
+            log.warning(f"文件夹为空: {cloud_path}")
             return {"total": 0, "succeeded": 0, "failed": 0, "files": []}
 
         # 下载统计
@@ -205,7 +199,7 @@ class Downloader:
         results = []
 
         if show_progress:
-            print(f"📦 开始下载文件夹: {cloud_path} ({total} 个文件)")
+            log.info(f"开始下载文件夹: {cloud_path} ({total} 个文件)")
 
         # 逐个下载文件
         pbar = tqdm(total=total, desc="下载进度", unit="file", disable=not show_progress)
@@ -230,7 +224,13 @@ class Downloader:
                 download_url = self.file.download_info(file_info["fileId"]).get("data", {}).get("downloadUrl", "")
                 if not download_url:
                     failed += 1
-                    results.append({"file": rel_path, "status": "failed", "error": "无法获取下载链接"})
+                    results.append(
+                        {
+                            "file": rel_path,
+                            "status": "failed",
+                            "error": "无法获取下载链接",
+                        }
+                    )
                     pbar.update(1)
                     continue
 
@@ -251,13 +251,19 @@ class Downloader:
 
             except Exception as e:
                 failed += 1
-                results.append({"file": file_info.get("relative_path", "unknown"), "status": "failed", "error": str(e)})
+                results.append(
+                    {
+                        "file": file_info.get("relative_path", "unknown"),
+                        "status": "failed",
+                        "error": str(e),
+                    }
+                )
                 pbar.update(1)
 
         pbar.close()
 
         if show_progress:
-            print(f"✅ 下载完成: 总计 {total} 个文件，成功 {succeeded} 个，失败 {failed} 个")
+            log.info(f"下载完成: 总计 {total} 个文件，成功 {succeeded} 个，失败 {failed} 个")
 
         return {
             "total": total,
@@ -269,7 +275,7 @@ class Downloader:
 
     # ==================== 内部辅助方法 ====================
 
-    def _find_file_by_path(self, cloud_path: PurePosixPath, is_dir: bool = False) -> tuple[Optional[int], Optional[dict]]:
+    def _find_file_by_path(self, cloud_path: PurePosixPath, is_dir: bool = False) -> tuple[int | None, dict | None]:
         """根据云端路径查找文件或文件夹的 ID"""
         if not cloud_path.is_absolute():
             return None, None
@@ -318,7 +324,7 @@ class Downloader:
 
         return current_id, current_item
 
-    def _get_file_list(self, parent_id: int, current_path: str = "", base_path: str = "") -> List[dict]:
+    def _get_file_list(self, parent_id: int, current_path: str = "", base_path: str = "") -> list[dict]:
         """递归获取文件夹下的所有文件"""
         file_list = []
         last_file_id = None
@@ -331,10 +337,7 @@ class Downloader:
 
             for item in resjson["data"]["fileList"]:
                 # 构建完整路径（保持 / 开头）
-                if current_path:
-                    item_path = f"{current_path}/{item['filename']}"
-                else:
-                    item_path = f"/{item['filename']}"
+                item_path = f"{current_path}/{item['filename']}" if current_path else f"/{item['filename']}"
 
                 item["full_path"] = item_path
 
@@ -367,10 +370,10 @@ class Downloader:
     def download(
         self,
         remote_path: str,
-        local_path: Optional[str] = None,
+        local_path: str | None = None,
         overwrite: bool = False,
         show_progress: bool = True,
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """自动判断远端路径是文件还是文件夹并下载。
 
         如果 remote_path 指向文件夹，调用 download_folder；如果指向文件，调用 download_file。
@@ -388,12 +391,22 @@ class Downloader:
         folder_id, _ = self._find_file_by_path(cloud_path, is_dir=True)
         if folder_id:
             # 如果是文件夹，调用 download_folder
-            return self.download_folder(remote_path, local_path=local_path, overwrite=overwrite, show_progress=show_progress)
+            return self.download_folder(
+                remote_path,
+                local_path=local_path,
+                overwrite=overwrite,
+                show_progress=show_progress,
+            )
 
         # 再尝试按文件查找
         file_id, _ = self._find_file_by_path(cloud_path, is_dir=False)
         if file_id:
-            return self.download_file(remote_path, local_path=local_path, overwrite=overwrite, show_progress=show_progress)
+            return self.download_file(
+                remote_path,
+                local_path=local_path,
+                overwrite=overwrite,
+                show_progress=show_progress,
+            )
 
         # 如果两者都找不到，尝试列出父目录看是否存在类似名称（容错）
         # 例如：用户传入的路径可能带/或不带后缀

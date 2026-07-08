@@ -1,5 +1,3 @@
-from typing import Union
-
 from pydantic import Field, validate_call
 
 from .Auth import Auth
@@ -59,7 +57,15 @@ class File2:
         return self.auth.request_json("POST", API.File2Path.CREATE, json=data)
 
     @validate_call
-    def sha1_reuse(self, parentFileID: int, filename: str, sha1: str, size: int, *, duplicate: int = 1) -> dict:
+    def sha1_reuse(
+        self,
+        parentFileID: int,
+        filename: str,
+        sha1: str,
+        size: int,
+        *,
+        duplicate: int = 1,
+    ) -> dict:
         """秒传文件.
 
         Args:
@@ -84,7 +90,7 @@ class File2:
     @validate_call
     def slice(
         self,
-        preuploadID: Union[int, str],
+        preuploadID: int | str,
         sliceNo: int,
         sliceMD5: str,
         slice: bytes,
@@ -116,7 +122,7 @@ class File2:
         return self.auth.request_json("POST", url, data=data, files=files)
 
     @validate_call
-    def upload_complete(self, preuploadID: Union[int, str]) -> dict:
+    def upload_complete(self, preuploadID: int | str) -> dict:
         """完成文件上传.
 
         Args:

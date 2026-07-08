@@ -3,7 +3,7 @@ import json
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import validate_call
 from ratelimit import limits, sleep_and_retry
@@ -85,7 +85,7 @@ class FileList:
         new_name = f"{trimmed_stem}_{hash_suffix}{suffix}"
         return path.with_name(new_name), True
 
-    def _save_json_safely(self, data: Dict[str, Any], json_path: Path) -> bool:
+    def _save_json_safely(self, data: dict[str, Any], json_path: Path) -> bool:
         """安全保存 JSON 文件"""
         try:
             safe_path, truncated = self._shrink_name(json_path)
@@ -105,7 +105,7 @@ class FileList:
                 log.warning(f"文件名过长，已截断保存为: {safe_path.name}")
             return True
 
-        except IOError as e:
+        except OSError as e:
             log.error(f"文件IO错误: {e}")
             return False
         except Exception as e:
@@ -115,7 +115,8 @@ class FileList:
     @validate_call
     def get_file_list_v1(self, parent_id: int, max_tries: int = 20, search_data: str | None = None) -> dict:
         """
-        获取指定目录的全部文件（分页，兼容字段，支持搜索）, 并同时返回 fileId 和 fileID, 官方 V1 返回的是 fileID, V2 返回的是 fileId
+        获取指定目录的全部文件（分页，兼容字段，支持搜索）,
+        并同时返回 fileId 和 fileID, 官方 V1 返回的是 fileID, V2 返回的是 fileId
 
         Args:
             parent_id: 目录 ID
@@ -138,7 +139,12 @@ class FileList:
                     searchData=search_data,
                 )
 
-                if not resjson or resjson.get("code") != 0 or "data" not in resjson or not isinstance(resjson["data"], dict):
+                if (
+                    not resjson
+                    or resjson.get("code") != 0
+                    or "data" not in resjson
+                    or not isinstance(resjson["data"], dict)
+                ):
                     tries += 1
                     log.warning(f"v1接口响应异常: {resjson}，重试中... (尝试 {tries}/{max_tries})")
                     time.sleep(2 * (tries + 1))
@@ -179,14 +185,25 @@ class FileList:
 
         if tries >= max_tries:
             log.error(f"目录 {parent_id} 获取失败，已达到最大重试次数")
-            return {"code": -1, "message": "获取失败", "data": {"total": 0, "fileList": []}}
+            return {
+                "code": -1,
+                "message": "获取失败",
+                "data": {"total": 0, "fileList": []},
+            }
 
         return resjsons
 
     @validate_call
-    def get_file_list_v2(self, parent_id: int, max_tries: int = 20, search_data: str | None = None, search_mode: int | None = None) -> dict:
+    def get_file_list_v2(
+        self,
+        parent_id: int,
+        max_tries: int = 20,
+        search_data: str | None = None,
+        search_mode: int | None = None,
+    ) -> dict:
         """
-        获取指定目录的全部文件（分页，兼容字段，支持搜索/模式）, 并同时返回 fileId 和 fileID, 官方 V1 返回的是 fileID, V2 返回的是 fileId
+        获取指定目录的全部文件（分页，兼容字段，支持搜索/模式）,
+        并同时返回 fileId 和 fileID, 官方 V1 返回的是 fileID, V2 返回的是 fileId
 
         Args:
             parent_id: 目录 ID
@@ -215,7 +232,12 @@ class FileList:
                     tries += 1
                     continue
 
-                if not resjson or resjson.get("code") != 0 or "data" not in resjson or not isinstance(resjson["data"], dict):
+                if (
+                    not resjson
+                    or resjson.get("code") != 0
+                    or "data" not in resjson
+                    or not isinstance(resjson["data"], dict)
+                ):
                     tries += 1
                     # log.warning(f"v2接口响应异常: {resjson}，重试中... (尝试 {tries}/{max_tries})")
                     time.sleep(2 * (tries + 1))
@@ -256,12 +278,23 @@ class FileList:
 
         if tries >= max_tries:
             # log.error(f"目录 {parent_id} (v2) 获取失败，已达到最大重试次数")
-            return {"code": -1, "message": "获取失败", "data": {"total": 0, "fileList": []}}
+            return {
+                "code": -1,
+                "message": "获取失败",
+                "data": {"total": 0, "fileList": []},
+            }
 
         return resjsons
 
     @validate_call
-    def recursive_list_v1(self, parent_id: int, save_dir: str = "./output", current_path: str = "", verbose: bool = False, depth: int = 0) -> None:
+    def recursive_list_v1(
+        self,
+        parent_id: int,
+        save_dir: str = "./output",
+        current_path: str = "",
+        verbose: bool = False,
+        depth: int = 0,
+    ) -> None:
         """
         递归遍历目录并保存每一级目录的文件列表为 JSON，
         并给每一个文件/目录添加 fullpath 字段。
@@ -339,7 +372,13 @@ class FileList:
                         log.warning(f"子目录项缺少 fileID: {item}")
                         continue
 
-                    self.recursive_list_v1(sub_id, save_dir, current_path=sub_path, verbose=verbose, depth=depth + 1)
+                    self.recursive_list_v1(
+                        sub_id,
+                        save_dir,
+                        current_path=sub_path,
+                        verbose=verbose,
+                        depth=depth + 1,
+                    )
 
                 except Exception as e:
                     log.error(f"递归处理子目录失败: {item}, 错误: {e}")
@@ -587,7 +626,7 @@ class FileList:
 
         current_parent = 0
         for part in parts:
-            found_id: Optional[int] = None
+            found_id: int | None = None
             found_id = self._get_file_list_v2_by_part(parent_id=current_parent, part=part, is_dir=True)
             if found_id is None:
                 # 创建目录
@@ -628,7 +667,8 @@ class FileList:
         max_tries: int = 20,
     ) -> int | None:
         """
-        获取指定目录的全部文件（分页，兼容字段，支持搜索/模式）, 并同时返回 fileId 和 fileID, 官方 V1 返回的是 fileID, V2 返回的是 fileId
+        获取指定目录的全部文件（分页，兼容字段，支持搜索/模式）,
+        并同时返回 fileId 和 fileID, 官方 V1 返回的是 fileID, V2 返回的是 fileId
 
         Args:
             parent_id: 目录 ID
@@ -657,7 +697,12 @@ class FileList:
                     tries += 1
                     continue
 
-                if not resjson or resjson.get("code") != 0 or "data" not in resjson or not isinstance(resjson["data"], dict):
+                if (
+                    not resjson
+                    or resjson.get("code") != 0
+                    or "data" not in resjson
+                    or not isinstance(resjson["data"], dict)
+                ):
                     tries += 1
                     time.sleep(2 * (tries + 1))
                     continue

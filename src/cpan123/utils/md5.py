@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
-from typing import Optional
+
+from .Logger import log
 
 
 def calculate_md5(file_path: Path | str) -> str:
@@ -13,14 +14,16 @@ def calculate_md5(file_path: Path | str) -> str:
         str: 文件的 MD5 值
 
     Raises:
-        AssertionError: 文件不存在或路径不是文件或文件大小为0
+        FileNotFoundError: 文件不存在或路径不是文件
 
     """
     if isinstance(file_path, str):
         file_path = Path(file_path)
 
-    assert file_path.exists(), f"❌ 文件不存在: {file_path}"
-    assert file_path.is_file(), f"❌ 路径不是文件: {file_path}"
+    if not file_path.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+    if not file_path.is_file():
+        raise FileNotFoundError(f"路径不是文件: {file_path}")
     hash_md5 = hashlib.md5()
     with file_path.open("rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
@@ -73,10 +76,10 @@ def calculate_slice_md5(file_path):
             md5.update(data)
         return md5.hexdigest()
     except FileNotFoundError:
-        print(f"文件未找到: {file_path}")
+        log.error(f"文件未找到: {file_path}")
         return None
     except Exception as e:
-        print(f"读取文件时发生错误: {e}")
+        log.error(f"读取文件时发生错误: {e}")
         return None
 
 
@@ -119,23 +122,35 @@ def calculate_sha256(file_path: str) -> str:
     return sha256_hash.hexdigest()
 
 
-def calculate_sha1(file_path: str) -> str:
+def calculate_sha1(file_path: Path | str) -> str:
+    """计算文件的 SHA1 值。
+
+    Args:
+        file_path: 文件路径,可以是 Path 对象或字符串
+
+    Returns:
+        str: 文件的 SHA1 值
     """
-    计算文件的 SHA1 值.
-    """
+    file_path = Path(file_path) if isinstance(file_path, str) else file_path
     sha1_hash = hashlib.sha1()
-    with open(file_path, "rb") as f:
+    with file_path.open("rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
             sha1_hash.update(chunk)
     return sha1_hash.hexdigest()
 
 
-def calculate_sha512(file_path: str) -> str:
+def calculate_sha512(file_path: Path | str) -> str:
+    """计算文件的 SHA512 值。
+
+    Args:
+        file_path: 文件路径,可以是 Path 对象或字符串
+
+    Returns:
+        str: 文件的 SHA512 值
     """
-    计算文件的 SHA512 值.
-    """
+    file_path = Path(file_path) if isinstance(file_path, str) else file_path
     sha512_hash = hashlib.sha512()
-    with open(file_path, "rb") as f:
+    with file_path.open("rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
             sha512_hash.update(chunk)
     return sha512_hash.hexdigest()
@@ -143,10 +158,10 @@ def calculate_sha512(file_path: str) -> str:
 
 def check_hash(
     file_path: str,
-    expected_md5: Optional[str] = None,
-    expected_sha1: Optional[str] = None,
-    expected_sha256: Optional[str] = None,
-    expected_sha512: Optional[str] = None,
+    expected_md5: str | None = None,
+    expected_sha1: str | None = None,
+    expected_sha256: str | None = None,
+    expected_sha512: str | None = None,
 ) -> bool:
     """
     校验文件的哈希值.  通过则返回 True, 否则返回 False.

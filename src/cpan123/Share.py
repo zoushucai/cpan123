@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import Field, validate_call
 
@@ -20,7 +20,7 @@ class Share:
         shareName: str,
         shareExpire: Literal[0, 1, 7, 30],
         fileIDList: str,
-        sharePwd: Optional[str] = None,
+        sharePwd: str | None = None,
         trafficSwitch: Literal[1, 2, 3, 4] | None = 1,
         trafficLimitSwitch: Literal[1, 2] | None = 1,
         trafficLimit: int | None = 1 * (1024**3),

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import validate_call
 
 from .Auth import Auth
@@ -22,9 +20,9 @@ class Offline:
     def download(
         self,
         url: str,
-        fileName: Optional[str] = None,
-        dirID: Optional[int] = None,
-        callBackUrl: Optional[str] = None,
+        fileName: str | None = None,
+        dirID: int | None = None,
+        callBackUrl: str | None = None,
     ) -> dict:
         """
         创建离线下载任务

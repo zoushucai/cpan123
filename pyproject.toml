@@ -9,7 +9,7 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.3.0",
-    "dotenv>=0.9.9",
+    "python-dotenv>=0.9.9",
     "httpx[http2]>=0.28.1",
     "loguru>=0.7.3",
     "py3-wget>=1.0.13",
@@ -23,7 +23,7 @@ dependencies = [
 cpan123 = "cpan123.cli:cli"
 
 [build-system]
-requires = ["uv_build>=0.9.7,<0.10.0"]
+requires = ["uv_build>=0.9.7,<0.12.0"]
 build-backend = "uv_build"
 
 
@@ -34,8 +34,38 @@ python_files = "test_*.py"
 python_functions = "test_*"
 
 
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.format]
+docstring-code-format = true
+
 [tool.ruff.lint]
-extend-select = ["I", "B"]
+extend-select = [
+    "I",      # isort — 导入排序
+    "B",      # flake8-bugbear — 检测常见 bug
+    "UP",     # pyupgrade — 自动升级到 py310+ 语法
+    "N",      # pep8-naming — 命名规范
+    "E",      # pycodestyle 错误
+    "W",      # pycodestyle 警告
+    "SIM",    # flake8-simplify — 简化代码
+    "ARG",    # flake8-unused-arguments — 未使用的参数
+    "T10",    # flake8-debugger — 残留调试代码
+    "PERF",   # perflint — 性能建议
+    "RUF100", # 检测未使用的 noqa 注释
+]
+ignore = [
+    "RUF001", # 中文文档字符串中的全角字符是正常用法
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+# API 参数命名（如 parentFileID）与 123 云盘官方接口一致，跳过命名规范检查
+"src/cpan123/*.py" = ["N803", "N806", "N815", "N999"]
+
 [dependency-groups]
 dev = [
     "black>=25.1.0",

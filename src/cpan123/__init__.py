@@ -26,7 +26,8 @@ class Pan123OpenAPI:
         self.user = User(self.auth)
 
         self.userinfo = self.user.userinfo
-        assert self.userinfo is not None, "用户未授权,请先完成授权流程"
+        if self.userinfo is None:
+            raise ValueError("用户未授权,请先完成授权流程")
         self.file = File(self.auth, self.userinfo)
         self.file2 = File2(self.auth, self.userinfo)
         self.uploader = Uploader(self.auth, self.userinfo)

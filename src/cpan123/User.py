@@ -1,6 +1,7 @@
 from .Auth import Auth
 from .model.Base import UserInfoModel
 from .utils.Constants import API
+from .utils.Logger import log
 
 
 class User:
@@ -41,7 +42,11 @@ class User:
             UserInfoModel: 用户信息模型
 
         Example Response:
-            {'code': 0, 'message': 'ok', 'data': {'uid': 16666, 'nickname': '16666', .....,  'vip': True,  'vipInfo': [{'vipLevel': 1, 'vipLabel': 'VIP', 'startTime': '2024-06-14 15:52:05', 'endTime': '2029-03-23 23:59:00'}, {'vipLevel': 3, 'vipLabel': '长期VIP', 'startTime': '2025-05-15 01:25:05', 'endTime': '长期有效'}], 'developerInfo': None}}
+            {'code': 0, 'message': 'ok', 'data': {'uid': 16666, 'nickname': '16666',
+            'vip': True, 'vipInfo': [{'vipLevel': 1, 'vipLabel': 'VIP',
+            'startTime': '2024-06-14 15:52:05', 'endTime': '2029-03-23 23:59:00'},
+            {'vipLevel': 3, 'vipLabel': '长期VIP', 'startTime': '2025-05-15 01:25:05',
+            'endTime': '长期有效'}], 'developerInfo': None}}
         """
         try:
             resp = self.get_user_info()
@@ -63,6 +68,6 @@ class User:
             )
             return user_info
         except Exception as e:
-            print(f"获取用户信息失败: {e}")
-            print(f"原始响应: {resp}")
+            log.error(f"获取用户信息失败: {e}")
+            log.error(f"原始响应: {resp}")
             raise ValueError(f"解析用户信息失败: {e}") from e

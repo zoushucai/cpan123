@@ -41,30 +41,7 @@ class Jwt:
         timeout = httpx.Timeout(connect=30.0, read=120.0, write=120.0, pool=30.0)
         return httpx.Client(headers={"User-Agent": UA}, timeout=timeout, event_hooks=hooks)
 
-    # def _is_iso8601_format(self, date_str):
-    #     try:
-    #         datetime.fromisoformat(date_str)
-    #         return True
-    #     except ValueError:
-    #         return False
     # -------------------- Token 管理 --------------------
-    # def _expire2int(self, expire_value: str | int | float) -> int:
-    #     """将过期时间值转换为整数秒"""
-    #     if isinstance(expire_value, int):
-    #         t = expire_value
-    #     elif isinstance(expire_value, (str, float)):
-    #         try:
-    #             t = int(float(expire_value))
-    #         except (TypeError, ValueError):
-    #             log.error(f"无法将过期时间转换为整数: {expire_value}")
-    #             raise AuthError(-1, "无效的过期时间格式") from None
-    #     else:
-    #         log.error(f"过期时间值类型不支持: {type(expire_value)}")
-    #         raise AuthError(-1, "无效的过期时间类型")
-    #     if t < 0 or t >= 20 * 365 * 24 * 3600:
-    #         log.error(f"过期时间数值异常: {t}")
-    #         raise AuthError(-1, "过期时间数值异常")
-    #     return t
     @property
     def is_token_valid(self) -> bool:
         return self.expires_at > time.time() + self.REFRESH_THRESHOLD

@@ -2,9 +2,6 @@
 v1版本, 不含上传文件等操作, 因为v2版本已经支持上传文件等操作
 """
 
-import sys
-from typing import Optional
-
 from pydantic import Field, validate_call
 
 from .Auth import Auth
@@ -68,13 +65,11 @@ class File:
 
         """
         if len(renameList) > 30:
-            log.error("renameList 参数长度最大不超过 30,请修改后重试")
-            sys.exit(1)
+            raise ValueError("renameList 参数长度最大不超过 30,请修改后重试")
         # 检查格式
         for item in renameList:
             if "|" not in item or len(item.split("|")) != 2:
-                log.error(f"renameList 参数格式错误: {item}, 正确格式为 fileID|新文件名,请修改后重试")
-                sys.exit(1)
+                raise ValueError(f"renameList 参数格式错误: {item}, 正确格式为 fileID|新文件名,请修改后重试")
         return self.auth.request_json("POST", API.FilePath.RENAME, json={"renameList": renameList})
 
     @validate_call
@@ -89,8 +84,7 @@ class File:
 
         """
         if len(fileIDs) > 100:
-            log.error("fileIDs 参数长度最大不超过 100,请修改后重试")
-            sys.exit(1)
+            raise ValueError("fileIDs 参数长度最大不超过 100,请修改后重试")
         return self.auth.request_json("POST", API.FilePath.TRASH, json={"fileIDs": fileIDs})
 
     @validate_call
@@ -105,8 +99,7 @@ class File:
 
         """
         if len(fileIDs) > 100:
-            log.error("fileIDs 参数长度最大不超过 100,请修改后重试")
-            sys.exit(1)
+            raise ValueError("fileIDs 参数长度最大不超过 100,请修改后重试")
         return self.auth.request_json("POST", API.FilePath.DELETE, json={"fileIDs": fileIDs})
 
     @validate_call
@@ -121,8 +114,7 @@ class File:
 
         """
         if len(fileIDs) > 100:
-            log.error("fileIDs 参数长度最大不超过 100,请修改后重试")
-            sys.exit(1)
+            raise ValueError("fileIDs 参数长度最大不超过 100,请修改后重试")
         data = {
             "fileIDs": fileIDs,
         }
@@ -141,8 +133,7 @@ class File:
 
         """
         if len(fileIDs) > 100:
-            log.error("fileIDs 参数长度最大不超过 100,请修改后重试")
-            sys.exit(1)
+            raise ValueError("fileIDs 参数长度最大不超过 100,请修改后重试")
         data = {
             "fileIDs": fileIDs,
             "parentFileID": parentFileID,
@@ -180,9 +171,9 @@ class File:
         self,
         parentFileId: int,
         limit: int = 100,
-        searchData: Optional[str] = None,
-        searchMode: Optional[int] = 0,
-        lastFileId: Optional[int] = None,
+        searchData: str | None = None,
+        searchMode: int | None = 0,
+        lastFileId: int | None = None,
         isTrashed: bool = True,
     ) -> dict:
         """获取文件列表(V2版本, v1弃用)
@@ -198,14 +189,8 @@ class File:
             isTrashed (bool): 是否包含回收站文件,默认包含 (官方是包含的), 保持与官网一致
 
         """
-        # 如果要对参数进行校验,需要 Field 等参数校验方法
-        # 默认已开启函数参数校验
-        # 也可以在函数体中进行参数校验了, 不能参与计算
-        # print(self.list_v2.__name__)
-        # print(self.list_v2.__doc__)
-        if limit > 100 and limit < 0:
-            log.error("limit 参数最大值为 100,请修改后重试")
-            sys.exit(1)
+        if limit > 100 or limit < 0:
+            raise ValueError("limit 参数最大值为 100,请修改后重试")
         params = {
             "parentFileId": parentFileId,
             "limit": limit,
@@ -241,8 +226,8 @@ class File:
         limit: int = Field(default=100, gt=0, le=100),
         orderBy: str = "file_id",
         orderDirection: str = "asc",
-        trashed: Optional[bool] = True,
-        searchData: Optional[str] = "",
+        trashed: bool | None = True,
+        searchData: str | None = "",
     ) -> dict:
         """获取文件列表(V1版本, v2弃用)
 
@@ -258,9 +243,7 @@ class File:
             searchData (str, optional): 搜索关键字将无视文件夹ID参数. 将会进行全局查找
 
         """
-        if limit > 100 and limit < 0:
-            log.error("limit 参数最大值为 100,请修改后重试")
-            sys.exit(1)
+        # list_v1 的参数已通过 Field(gt=0, le=100) 校验，无需重复检查
         params = {
             "parentFileId": parentFileId,
             "page": page,
@@ -286,8 +269,7 @@ class File:
 
         """
         if len(fileIDs) > 100:
-            log.error("fileIDs 参数长度最大不超过 100,请修改后重试")
-            sys.exit(1)
+            raise ValueError("fileIDs 参数长度最大不超过 100,请修改后重试")
         data = {
             "fileIDs": fileIDs,
             "toParentFileID": toParentFileID,

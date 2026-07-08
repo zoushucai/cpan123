@@ -29,7 +29,7 @@ class AliasedGroup(click.Group):
             return super().get_command(ctx, real)
         return None
 
-    def list_commands(self, ctx):
+    def list_commands(self, ctx):  # noqa: ARG002
         # Only list real commands (no duplicate alias names)
         return sorted(self.commands.keys())
 
@@ -42,10 +42,7 @@ class AliasedGroup(click.Group):
                 continue
             # collect aliases that map to this command
             aliases = [a for a, real in self._aliases.items() if real == name]
-            if aliases:
-                display = f"{name} ({', '.join(aliases)})"
-            else:
-                display = name
+            display = f"{name} ({', '.join(aliases)})" if aliases else name
             commands.append((display, cmd.get_short_help_str()))
 
         if commands:
@@ -88,15 +85,32 @@ def download_cmd(ctx, remote_path, output, overwrite):
         click.echo(f"下载成功: {res.get('local_path')}")
     else:
         # 文件夹下载返回统计信息
-        click.echo(f"下载完成: {res.get('succeeded', 0)} 成功, {res.get('failed', 0)} 失败, 本地路径: {res.get('local_path')}")
+        click.echo(
+            f"下载完成: {res.get('succeeded', 0)} 成功, {res.get('failed', 0)} 失败, 本地路径: {res.get('local_path')}"
+        )
     return None
 
 
 @cli.command("upload")
 @click.argument("local_path", type=click.Path(exists=True), metavar="<文件路径>")
 @click.option("-p", "--parent", type=int, default=0, show_default=True, help="云端目标目录 ID")
-@click.option("-d", "--dup", type=int, default=1, show_default=True, help="同名文件策略: 1=保留,2=覆盖")
-@click.option("-c", "--dir", "containDir", is_flag=True, default=True, show_default=True, help="包含本地目录结构")
+@click.option(
+    "-d",
+    "--dup",
+    type=int,
+    default=1,
+    show_default=True,
+    help="同名文件策略: 1=保留,2=覆盖",
+)
+@click.option(
+    "-c",
+    "--dir",
+    "containDir",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="包含本地目录结构",
+)
 @click.pass_context
 def upload_cmd(ctx, local_path, parent, dup, containDir):
     """上传本地文件或目录到云端。会根据 local_path 自动判定文件或文件夹。"""
@@ -105,7 +119,13 @@ def upload_cmd(ctx, local_path, parent, dup, containDir):
     path = Path(local_path)
     try:
         dup = 1 if dup == 1 else 2
-        result = client.uploader.upload(path, parentFileID=parent, duplicate=dup, contain_dir=containDir, method="chunked")
+        result = client.uploader.upload(
+            path,
+            parentFileID=parent,
+            duplicate=dup,
+            contain_dir=containDir,
+            method="chunked",
+        )
         total = int(result.get("total", 0) or 0)
         succeeded = int(result.get("succeeded", 0) or 0)
         failed = int(result.get("failed", 0) or 0)

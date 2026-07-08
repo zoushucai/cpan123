@@ -19,40 +19,13 @@ class API:
     class JWT:
         TOKEN = AUTH_BASE + "/api/v1/access_token"  # 获取访问令牌
 
-    # class FilePath:
-    #     # --------- 文件上传下载相关接口 ----------
-    #     UPLOAD_TOKEN = API_BASE + "/open/upload/get_token"
-    #     UPLOAD_INIT = API_BASE + "/open/upload/init"
-    #     UPLOAD_RESUME = API_BASE + "/open/upload/resume"
-
-    #     # --------- 文件夹相关接口 ----------
-    #     FOLDER_ADD = API_BASE + "/open/folder/add"
-    #     FOLDER_INFO = API_BASE + "/open/folder/get_info"
-
-    #     # --------- 文件相关接口 ----------
-    #     UFILE_FILES = API_BASE + "/open/ufile/files"
-    #     UFILE_SEARCH = API_BASE + "/open/ufile/search"
-    #     UFILE_COPY = API_BASE + "/open/ufile/copy"
-    #     UFILE_MOVE = API_BASE + "/open/ufile/move"
-    #     UFILE_DOWNURL = API_BASE + "/open/ufile/downurl"
-    #     UFILE_UPDATE = API_BASE + "/open/ufile/update"
-    #     UFILE_DELETE = API_BASE + "/open/ufile/delete"
-
-    #     # --------- 回收站相关接口 ----------
-    #     RB_LIST = API_BASE + "/open/rb/list"
-    #     RB_REVERT = API_BASE + "/open/rb/revert"
-    #     RB_DELETE = API_BASE + "/open/rb/del"
-
     class UserPath:
         USER_INFO = API_BASE + "/api/v1/user/info"
 
     class File2Path:
         CREATE = API_BASE + "/upload/v2/file/create"
-        # SLICE = API_BASE + "/upload/v2/file/slice"
         UPLOAD_COMPLETE = API_BASE + "/upload/v2/file/upload_complete"
         DOMAIN = API_BASE + "/upload/v2/file/domain"
-        # SINGLE_CREATE = API_BASE + "/upload/v2/file/single/create"
-        # sha1_reuse API： POST   域名 + /upload/v2/file/sha1_reuse
         SHA1_REUSE = API_BASE + "/upload/v2/file/sha1_reuse"
 
     class FilePath:
@@ -134,16 +107,16 @@ class API:
         # 获取直链离线日志 GET 域名 + /api/v1/direct-link/offline/logs
         LOG = API_BASE + "/api/v1/direct-link/offline/logs"
 
-        # 获取直链流量日志 GET 域名 + /api/v1/direct-link/log, 注: 此接口需要开通开发者权益，并且仅限查询近三天的日志数据
+        # 获取直链流量日志 GET 域名 + /api/v1/direct-link/log, 注：此接口需要开通开发者权益，仅限查询近三天数据
         LOG_TRAFFIC = API_BASE + "/api/v1/direct-link/log"
 
-        #  开启关闭ip黑名单 POST 域名 + /api/v1/developer/config/forbide-ip/switch  注： 此接口需要开通开发者权益
+        # 开启关闭ip黑名单 POST 域名 + /api/v1/developer/config/forbide-ip/switch（需开通开发者权益）
         IP_BLACKLIST_SWITCH = API_BASE + "/api/v1/developer/config/forbide-ip/switch"
 
-        # 更新ip黑名单列表  POST 域名 + /api/v1/developer/config/forbide-ip/update  注： 此接口需要开通开发者权益
+        # 更新ip黑名单列表 POST 域名 + /api/v1/developer/config/forbide-ip/update（需开通开发者权益）
         IP_BLACKLIST_UPDATE = API_BASE + "/api/v1/developer/config/forbide-ip/update"
 
-        #  ip黑名单列表 获取开发者功能IP配置黑名单 GET 域名 + /api/v1/developer/config/forbide-ip/list 注： 此接口需要开通开发者权益
+        # ip黑名单列表 GET 域名 + /api/v1/developer/config/forbide-ip/list（需开通开发者权益）
         IP_BLACKLIST_LIST = API_BASE + "/api/v1/developer/config/forbide-ip/list"
 
 
