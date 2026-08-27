@@ -43,8 +43,8 @@ output*/
 test4.py
 test4.log
 *.csv
-test*.py
-test*.json
+/test*.py
+/test*.json
 logs/
 接口.md
 创建目录.md

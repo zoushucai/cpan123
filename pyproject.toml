@@ -1,6 +1,6 @@
 [project]
 name = "cpan123"
-version = "0.2.13"
+version = "0.2.14"
 description = "123云盘的python接口文档(非官方)"
 readme = "README.md"
 authors = [
@@ -63,8 +63,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-# API 参数命名（如 parentFileID）与 123 云盘官方接口一致，跳过命名规范检查
-"src/cpan123/*.py" = ["N803", "N806", "N815", "N999"]
+# 保留现有大写模块名及与 123 云盘官方接口一致的参数、字段命名
+"src/cpan123/**/*.py" = ["N803", "N806", "N815", "N999"]
 
 [dependency-groups]
 dev = [
@@ -78,7 +78,7 @@ dev = [
     "mkdocstrings>=0.29.1",
     "mkdocstrings-python>=1.16.10",
     "pytest>=8.3.5",
-    "ruff>=0.11.8",
+    "ruff>=0.16.4",
     "jsonpath>=0.80.0",
     "pandas>=2.3.0",
 ]

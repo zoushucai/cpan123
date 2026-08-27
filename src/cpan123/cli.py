@@ -57,7 +57,6 @@ class AliasedGroup(click.Group):
     "envpath",
     type=click.Path(),
     default=None,
-    envvar="CPAN123_ENV",
     help="指定 .env 路径（也可用环境变量 CPAN123_ENV）",
 )
 @click.pass_context

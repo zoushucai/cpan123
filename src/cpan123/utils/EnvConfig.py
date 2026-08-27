@@ -1,3 +1,4 @@
+import os
 import warnings
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from dotenv import dotenv_values, set_key
 class EnvConfig:
     """封装 .env 文件加载、访问与保存逻辑"""
 
+    ENV_PATH_VAR = "CPAN123_ENV"
     SENSITIVE_KEYS = {"CLIENT_SECRET", "ACCESS_TOKEN", "REFRESH_TOKEN"}
 
     def __init__(self, envpath: str | Path | None = None, default_name: str = ".env.123"):
@@ -16,19 +18,28 @@ class EnvConfig:
     # -------------------- 路径处理 --------------------
 
     def _resolve_path(self, envpath: str | Path | None, default_name: str) -> Path:
-        """解析配置文件路径。
+        """解析配置文件路径.
 
-        优先级：用户指定路径 > 当前目录 .env > 用户目录 default_name。
+        Args:
+            envpath: 用户显式指定的环境配置文件路径.
+            default_name: 用户目录中的默认配置文件名.
+        Returns:
+            最终使用的环境配置文件路径.
+        Raises:
+            FileNotFoundError: 指定的配置文件不存在或未找到有效配置文件.
         """
-        if envpath:
-            path = Path(envpath).expanduser()
+        configured_path = envpath or os.getenv(self.ENV_PATH_VAR)
+        if configured_path:
+            path = Path(configured_path).expanduser()
+            source = "envpath" if envpath else f"环境变量 {self.ENV_PATH_VAR}"
             if not path.exists():
                 raise FileNotFoundError(
-                    f"指定的环境文件不存在: {path}\n\n"
+                    f"{source} 指定的环境文件不存在: {path}\n\n"
                     f"请使用以下任一方式配置：\n"
                     f"1) 通过 envpath 指向已存在的配置文件\n"
-                    f"2) 在当前目录创建 .env ({(Path.cwd() / '.env').resolve()})\n"
-                    f"3) 在用户目录创建 {default_name} ({Path.home() / default_name})"
+                    f"2) 设置环境变量 {self.ENV_PATH_VAR}\n"
+                    f"3) 在当前目录创建 .env ({(Path.cwd() / '.env').resolve()})\n"
+                    f"4) 在用户目录创建 {default_name} ({Path.home() / default_name})"
                 )
             return path
 
@@ -37,7 +48,8 @@ class EnvConfig:
             if self._has_required_auth_keys(cwd_env):
                 return cwd_env
             warnings.warn(
-                f"检测到当前目录配置文件 {cwd_env}，但缺少 CLIENT_ID 或 CLIENT_SECRET，将继续尝试用户目录配置文件 {Path.home() / default_name}。",
+                f"检测到当前目录配置文件 {cwd_env}，但缺少 CLIENT_ID 或 CLIENT_SECRET，"
+                f"将继续尝试用户目录配置文件 {Path.home() / default_name}。",
                 stacklevel=2,
             )
 
@@ -54,13 +66,15 @@ class EnvConfig:
             "未找到环境配置文件。\n\n"
             "查找优先级：\n"
             "- 用户指定路径 envpath\n"
+            f"- 环境变量 {self.ENV_PATH_VAR}\n"
             f"- 当前目录 .env ({cwd_env.resolve()})\n"
             f"- 用户目录 {default_name} ({path})\n\n"
             "注意：若文件存在但缺少 CLIENT_ID 或 CLIENT_SECRET，也会被视为无效。\n\n"
             "请使用以下任一方式配置：\n"
             "1) 初始化客户端时传入 envpath，指向你的配置文件\n"
-            f"2) 在当前运行目录创建 .env ({cwd_env.resolve()})\n"
-            f"3) 在用户目录创建 {default_name} ({path})\n\n"
+            f"2) 设置环境变量 {self.ENV_PATH_VAR}\n"
+            f"3) 在当前运行目录创建 .env ({cwd_env.resolve()})\n"
+            f"4) 在用户目录创建 {default_name} ({path})\n\n"
             "配置文件至少应包含：CLIENT_ID、CLIENT_SECRET"
         )
 

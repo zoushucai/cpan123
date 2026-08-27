@@ -1,3 +1,7 @@
+import base64
+import binascii
+import json
+import math
 import time
 from datetime import datetime
 
@@ -19,7 +23,7 @@ class Jwt:
         JWT 授权与 Token 管理
 
         Args:
-            envpath: 环境文件路径。未指定时按优先级查找：用户指定 > 当前目录 .env > 用户目录 .env.123
+            envpath: 环境文件路径。未指定时按优先级查找：CPAN123_ENV > 当前目录 .env > 用户目录 .env.123
             verbose: 是否启用详细日志输出
         """
         self.env = EnvConfig(envpath)
@@ -44,7 +48,47 @@ class Jwt:
     # -------------------- Token 管理 --------------------
     @property
     def is_token_valid(self) -> bool:
-        return self.expires_at > time.time() + self.REFRESH_THRESHOLD
+        jwt_expires_at = self._get_jwt_expires_at(self.access_token)
+        effective_expires_at = jwt_expires_at if jwt_expires_at is not None else self.expires_at
+        return effective_expires_at > time.time() + self.REFRESH_THRESHOLD
+
+    @staticmethod
+    def _get_jwt_expires_at(access_token: str | None) -> int | None:
+        """读取 JWT payload 中的过期时间.
+
+        此处仅使用 ``exp`` 判断何时刷新 token，不负责验证 JWT 签名。对于非 JWT、
+        payload 损坏或缺少有效 ``exp`` 的 token，返回 ``None``，由调用方回退到
+        服务端返回的 ``expiredAt``。
+
+        Args:
+            access_token: 待解析的 access token.
+
+        Returns:
+            JWT 的 Unix 过期时间戳；无法解析时返回 ``None``.
+        """
+        if not access_token:
+            return None
+
+        parts = access_token.split(".")
+        if len(parts) != 3:
+            return None
+
+        encoded_payload = parts[1]
+        padded_payload = encoded_payload + "=" * (-len(encoded_payload) % 4)
+        try:
+            payload = json.loads(base64.urlsafe_b64decode(padded_payload).decode("utf-8"))
+        except (binascii.Error, json.JSONDecodeError, UnicodeDecodeError, ValueError):
+            return None
+
+        if not isinstance(payload, dict):
+            return None
+
+        expires_at = payload.get("exp")
+        if isinstance(expires_at, bool) or not isinstance(expires_at, int | float):
+            return None
+        if not math.isfinite(expires_at):
+            return None
+        return int(expires_at)
 
     def _get_key(self, data: dict, key: str) -> str:
         """从响应数据中获取指定 key 的值，支持多层嵌套"""
@@ -69,19 +113,23 @@ class Jwt:
         if code != 0:
             raise AuthError(int(code), f"获取 token 失败: {data}")
         access_token = self._get_key(data, "accessToken")
-        expiredAt = self._get_key(data, "expiredAt")
-
-        try:
-            expires_in = int(datetime.fromisoformat(expiredAt).timestamp())
-        except (TypeError, ValueError):
-            log.error(f"无法将过期时间转换为整数: {expiredAt}")
-            raise AuthError(-1, "无效的过期时间格式") from None
 
         if not access_token:
             raise AuthError(-1, "响应缺少 access_token")
 
+        jwt_expires_at = self._get_jwt_expires_at(access_token)
+        if jwt_expires_at is not None:
+            expires_at = jwt_expires_at
+        else:
+            expired_at = self._get_key(data, "expiredAt")
+            try:
+                expires_at = int(datetime.fromisoformat(expired_at).timestamp())
+            except (TypeError, ValueError):
+                log.error(f"无法将过期时间转换为整数: {expired_at}")
+                raise AuthError(-1, "无效的过期时间格式") from None
+
         self.access_token = access_token
-        self.expires_at = expires_in
+        self.expires_at = expires_at
 
         for k, v in {
             "ACCESS_TOKEN": access_token,
