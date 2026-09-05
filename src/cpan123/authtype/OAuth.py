@@ -67,6 +67,7 @@ class OAuth:
         self.access_token = env.get("ACCESS_TOKEN")
         self.refresh_token = env.get("REFRESH_TOKEN")
         self.expires_at = env.get_int("EXPIRES_AT")
+        self.trust_env = env.get_bool("TRUST_ENV", True)
 
     # ==========================================================
     # HTTP 客户端与日志
@@ -74,7 +75,12 @@ class OAuth:
 
     def _create_client(self) -> httpx.Client:
         hooks = {"request": [log_request], "response": [log_response]} if self.verbose else None
-        return httpx.Client(headers={"User-Agent": UA}, timeout=30, event_hooks=hooks)
+        return httpx.Client(
+            headers={"User-Agent": UA},
+            timeout=30,
+            event_hooks=hooks,
+            trust_env=self.trust_env,
+        )
 
     # ==========================================================
     # Token 管理
@@ -84,7 +90,7 @@ class OAuth:
     def is_token_valid(self) -> bool:
         return self.expires_at > time.time() + self.REFRESH_THRESHOLD
 
-    def _expire2int(self, expire_value: str | int | float | None) -> int:
+    def _expire2int(self, expire_value: str | float | None) -> int:
         """将过期时间值转换为整数秒"""
         if not expire_value:
             log.error("过期时间值为空")

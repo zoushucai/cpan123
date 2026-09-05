@@ -1,15 +1,19 @@
 import os
 import warnings
 from pathlib import Path
+from typing import ClassVar
 
 from dotenv import dotenv_values, set_key
+from pydantic import TypeAdapter, ValidationError
+
+_BOOL_ADAPTER = TypeAdapter(bool)
 
 
 class EnvConfig:
     """封装 .env 文件加载、访问与保存逻辑"""
 
     ENV_PATH_VAR = "CPAN123_ENV"
-    SENSITIVE_KEYS = {"CLIENT_SECRET", "ACCESS_TOKEN", "REFRESH_TOKEN"}
+    SENSITIVE_KEYS: ClassVar[set[str]] = {"CLIENT_SECRET", "ACCESS_TOKEN", "REFRESH_TOKEN"}
 
     def __init__(self, envpath: str | Path | None = None, default_name: str = ".env.123"):
         self.path = self._resolve_path(envpath, default_name)
@@ -109,6 +113,25 @@ class EnvConfig:
             return int(val)
         except ValueError:
             return default
+
+    def get_bool(self, key: str, default: bool = False) -> bool:
+        """获取并验证布尔配置项.
+
+        Args:
+            key: 配置项名称.
+            default: 配置缺失或值为空时使用的默认值.
+        Returns:
+            解析后的布尔值.
+        Raises:
+            ValueError: 配置值不是可识别的布尔值.
+        """
+        value = self.get(key)
+        if not value:
+            return default
+        try:
+            return _BOOL_ADAPTER.validate_python(value)
+        except ValidationError as exc:
+            raise ValueError(f"{key} 必须是布尔值，例如 true 或 false") from exc
 
     def as_dict(self) -> dict:
         """以字典形式返回所有配置项"""

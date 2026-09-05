@@ -38,12 +38,18 @@ class Jwt:
         self.client_secret = env.get("CLIENT_SECRET")
         self.access_token = env.get("ACCESS_TOKEN")
         self.expires_at = env.get_int("EXPIRES_AT", 0)
+        self.trust_env = env.get_bool("TRUST_ENV", True)
 
     # -------------------- HTTP 客户端 --------------------
     def _create_client(self) -> httpx.Client:
         hooks = {"request": [log_request], "response": [log_response]} if self.verbose else None
         timeout = httpx.Timeout(connect=30.0, read=120.0, write=120.0, pool=30.0)
-        return httpx.Client(headers={"User-Agent": UA}, timeout=timeout, event_hooks=hooks)
+        return httpx.Client(
+            headers={"User-Agent": UA},
+            timeout=timeout,
+            event_hooks=hooks,
+            trust_env=self.trust_env,
+        )
 
     # -------------------- Token 管理 --------------------
     @property

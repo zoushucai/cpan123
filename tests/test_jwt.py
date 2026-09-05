@@ -25,21 +25,32 @@ def _encode_jwt(expires_at: int) -> str:
     return f"{header}.{payload}.signature"
 
 
-def _write_env(path: Path, access_token: str = "", expires_at: int = 0) -> Path:
+def _write_env(
+    path: Path,
+    access_token: str = "",
+    expires_at: int = 0,
+    trust_env: str | None = None,
+) -> Path:
     """写入 JWT 客户端测试使用的环境配置.
 
     Args:
         path: 环境配置文件路径.
         access_token: 可选的缓存 access token.
         expires_at: 可选的缓存 Unix 过期时间戳.
+        trust_env: 可选的 HTTPX 环境配置读取开关.
 
     Returns:
         已写入的环境配置文件路径.
     """
-    path.write_text(
-        f"CLIENT_ID=test-client\nCLIENT_SECRET=test-secret\nACCESS_TOKEN={access_token}\nEXPIRES_AT={expires_at}\n",
-        encoding="utf-8",
-    )
+    lines = [
+        "CLIENT_ID=test-client",
+        "CLIENT_SECRET=test-secret",
+        f"ACCESS_TOKEN={access_token}",
+        f"EXPIRES_AT={expires_at}",
+    ]
+    if trust_env is not None:
+        lines.append(f"TRUST_ENV={trust_env}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
 
@@ -51,6 +62,30 @@ def test_is_token_valid_rejects_expired_jwt_when_cached_expiry_is_future(tmp_pat
 
     try:
         assert client.is_token_valid is False
+    finally:
+        client.session.close()
+
+
+def test_http_client_trusts_environment_proxy_by_default(tmp_path, monkeypatch):
+    """缺少 TRUST_ENV 时应兼容旧版并读取环境代理."""
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:10808")
+    env_file = _write_env(tmp_path / ".env")
+    client = Jwt(env_file)
+
+    try:
+        assert client.session._trust_env is True
+    finally:
+        client.session.close()
+
+
+def test_http_client_can_ignore_environment_proxy(tmp_path, monkeypatch):
+    """TRUST_ENV=false 时 JWT HTTP 客户端应忽略环境代理."""
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:10808")
+    env_file = _write_env(tmp_path / ".env", trust_env="false")
+    client = Jwt(env_file)
+
+    try:
+        assert client.session._trust_env is False
     finally:
         client.session.close()
 

@@ -45,3 +45,27 @@ def test_env_config_reports_missing_cpan123_env_file(tmp_path, monkeypatch):
 
     with pytest.raises(FileNotFoundError, match="环境变量 CPAN123_ENV"):
         EnvConfig()
+
+
+@pytest.mark.parametrize(
+    ("configured_value", "expected"),
+    [(None, True), ("", True), ("true", True), ("1", True), ("false", False), ("0", False)],
+)
+def test_env_config_parses_boolean_with_compatible_default(tmp_path, configured_value, expected):
+    """布尔配置缺失或为空时应使用兼容默认值，并支持常见写法."""
+    env_file = _write_env(tmp_path / ".env", "test")
+    if configured_value is not None:
+        with env_file.open("a", encoding="utf-8") as stream:
+            stream.write(f"TRUST_ENV={configured_value}\n")
+
+    assert EnvConfig(env_file).get_bool("TRUST_ENV", True) is expected
+
+
+def test_env_config_rejects_invalid_boolean(tmp_path):
+    """无法识别的布尔配置应明确报错."""
+    env_file = _write_env(tmp_path / ".env", "test")
+    with env_file.open("a", encoding="utf-8") as stream:
+        stream.write("TRUST_ENV=maybe\n")
+
+    with pytest.raises(ValueError, match="TRUST_ENV 必须是布尔值"):
+        EnvConfig(env_file).get_bool("TRUST_ENV", True)
